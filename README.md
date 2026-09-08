@@ -89,7 +89,7 @@ The build produces **`dist/safari`** with a nonpersistent Safari background scri
 
 ```sh
 API_ORIGIN=https://your-scrollock-server.example npm run build
-SAFARI_BUNDLE_ID=com.yourteam.scrollock npm run safari:package
+SAFARI_BUNDLE_ID=club.putos.scrollock npm run safari:package
 ```
 
 The script uses Apple's `safari-web-extension-packager` (previously named `safari-web-extension-converter`) to generate the native iOS containing app and extension target under `safari/`. It references `dist/safari`, so rebuild those resources after JS changes.
@@ -102,7 +102,7 @@ For friends, distribute a signed build via TestFlight/App Store or your chosen v
 
 Apple now offers a **Safari Web Extension Packager in App Store Connect**. ZIP the contents of `dist/safari` (manifest at the ZIP root), upload, and follow Apple's packaging/TestFlight workflow. See [Apple's packaging guide](https://developer.apple.com/documentation/safariservices/converting-a-web-extension-for-safari).
 
-**Verification boundary:** the Safari resource build is generated here, but native iOS packaging, signing, and Safari device execution have not been verified in this Linux environment. Before distribution, run the checklist below on a real iPhone. Playwright Chromium is not an iOS Safari extension runtime.
+**Verification boundary:** the Safari resources and native Xcode project can be generated on macOS, but signing requires an Apple account in Xcode and Safari behavior must be checked on a real iPhone before TestFlight distribution. Playwright Chromium is not an iOS Safari extension runtime.
 
 ## Tests
 

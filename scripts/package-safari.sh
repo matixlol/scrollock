@@ -12,6 +12,6 @@ fi
 xcrun safari-web-extension-packager "$ROOT/dist/safari" \
   --project-location "$ROOT/safari" \
   --app-name Scrollock \
-  --bundle-identifier "${SAFARI_BUNDLE_ID:-com.scrollock.friends}" \
+  --bundle-identifier "${SAFARI_BUNDLE_ID:-club.putos.scrollock}" \
   --ios-only --swift --no-open
 echo 'Open the generated Xcode project, select your signing team on both targets, then build and run on your iPhone.'
