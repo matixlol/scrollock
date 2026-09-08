@@ -96,14 +96,14 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
     TELEGRAM_BOT_TOKEN: "123:secret",
     TELEGRAM_BOT_USERNAME: "scrollock_bot",
     TELEGRAM_GROUP_ID: "-1",
-    PUBLIC_ORIGIN: "https://scrollock.putos.club",
+    PUBLIC_ORIGIN: "https://scrollock.poronga.com.ar",
     ALLOWED_ORIGINS: "chrome-extension://abc",
   };
   const state = new ScrollockState({ storage }, liveEnv);
   state.now = () => 1_800_000_000_000;
   state.telegram = async () => ({ status: "member" });
   const request = (path, init = {}) =>
-    state.fetch(new Request(`https://scrollock.putos.club${path}`, init));
+    state.fetch(new Request(`https://scrollock.poronga.com.ar${path}`, init));
   const pairing = await (await request("/api/pair", { method: "POST" })).json();
   const login = await request(`/login?id=${pairing.id}`);
   const cookie = login.headers.get("set-cookie").split(";")[0];

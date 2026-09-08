@@ -6,12 +6,12 @@
   "workers_dev": false,
   "routes": [
     {
-      "pattern": "scrollock.putos.club",
+      "pattern": "scrollock.poronga.com.ar",
       "custom_domain": true,
     },
   ],
   "vars": {
-    "PUBLIC_ORIGIN": "https://scrollock.putos.club",
+    "PUBLIC_ORIGIN": "https://scrollock.poronga.com.ar",
     "TELEGRAM_BOT_USERNAME": "scrollock_bot",
     "ALLOWED_ORIGINS": "chrome-extension://ahdgaahcjnpaegmopigcpgabcjmcilid",
   },

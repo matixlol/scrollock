@@ -54,7 +54,7 @@ Mock mode refuses `NODE_ENV=production` and non-loopback binding. It is for test
 1. Create a bot using **@BotFather**. Keep the token private. Record the bot's **username**, not its numeric ID.
 2. Add the bot to your friends' group and make it an administrator, so `getChatMember` reliably verifies other users. Ensure it can send messages.
 3. Set the one fixed `TELEGRAM_GROUP_ID` on the server. Everyone uses this destination; neither popup nor API accepts a group override. The real ID and bot credentials are intentionally not invented or committed.
-4. Deploy the Cloudflare Worker. Use `/setdomain` in BotFather to register `scrollock.putos.club` for the [Telegram login widget](https://core.telegram.org/widgets/login-legacy).
+4. Deploy the Cloudflare Worker. Use `/setdomain` in BotFather to register `scrollock.poronga.com.ar` for the [Telegram login widget](https://core.telegram.org/widgets/login-legacy).
 5. Copy `.env.example` to `.env` and populate it privately. Use the exact extension origins in `ALLOWED_ORIGINS`; never use `*`. For Safari, inspect `browser.runtime.getURL('')` in the extension's background inspector and remove the trailing slash. Safari origins may differ by installation/build, so allowlist each friend’s actual origin.
 6. Start the server and build the extension for that same HTTPS origin:
 
@@ -71,13 +71,13 @@ The API host permission is restricted at build time to this server. The bot toke
 
 ```sh
 npm ci
-cat .env | npx wrangler secret put TELEGRAM_BOT_TOKEN
-npx wrangler secret put TELEGRAM_GROUP_ID
+node --env-file=.env -e 'process.stdout.write(process.env.TELEGRAM_BOT_TOKEN)' | npx wrangler secret put TELEGRAM_BOT_TOKEN
+node --env-file=.env -e 'process.stdout.write(process.env.TELEGRAM_GROUP_ID)' | npx wrangler secret put TELEGRAM_GROUP_ID
 npm run deploy
-curl https://scrollock.putos.club/health
+curl https://scrollock.poronga.com.ar/health
 ```
 
-The production backend is a Worker at `scrollock.putos.club`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Add actual Safari origins to `ALLOWED_ORIGINS` after packaging.
+The production backend is a Worker at `scrollock.poronga.com.ar`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Add actual Safari origins to `ALLOWED_ORIGINS` after packaging.
 
 `GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions expire after seven days. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
 
@@ -89,7 +89,7 @@ The build produces **`dist/safari`** with a nonpersistent Safari background scri
 
 ```sh
 API_ORIGIN=https://your-scrollock-server.example npm run build
-SAFARI_BUNDLE_ID=club.putos.scrollock npm run safari:package
+SAFARI_BUNDLE_ID=ar.com.poronga.Scrollock npm run safari:package
 ```
 
 The script uses Apple's `safari-web-extension-packager` (previously named `safari-web-extension-converter`) to generate the native iOS containing app and extension target under `safari/`. It references `dist/safari`, so rebuild those resources after JS changes.

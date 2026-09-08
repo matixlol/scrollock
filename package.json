@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "build:production": "API_ORIGIN=https://scrollock.putos.club node scripts/build.mjs",
+    "build:production": "API_ORIGIN=https://scrollock.poronga.com.ar node scripts/build.mjs",
     "deploy": "wrangler deploy",
     "dev:worker": "wrangler dev",
     "start": "node server/index.mjs",
