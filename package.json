@@ -1,0 +1,26 @@
+{
+  "name": "scrollock",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:production": "API_ORIGIN=https://scrollock.putos.club node scripts/build.mjs",
+    "deploy": "wrangler deploy",
+    "dev:worker": "wrangler dev",
+    "start": "node server/index.mjs",
+    "test": "node --test server/*.test.mjs tests/*.test.mjs worker/*.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "check": "node scripts/check.mjs && prettier --check extension scripts server tests worker package.json wrangler.jsonc README.md",
+    "format": "prettier --write extension scripts server tests worker package.json wrangler.jsonc README.md",
+    "safari:package": "bash scripts/package-safari.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "prettier": "^3.9.6",
+    "wrangler": "^4.130.0"
+  }
+}

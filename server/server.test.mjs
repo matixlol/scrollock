@@ -1,0 +1,393 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createHash, createHmac } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer, config } from "./server.mjs";
+
+async function fixture({
+  mock = true,
+  telegram,
+  failure,
+  leaseDuration = 300_000,
+} = {}) {
+  const dir = await mkdtemp(join(tmpdir(), "scrollock-"));
+  let time = 1_800_000_000_000;
+  const cfg = {
+    mock,
+    host: "127.0.0.1",
+    botToken: "123:secret",
+    botUsername: "scrollock_test_bot",
+    groupId: "-1",
+    origins: ["chrome-extension://abc"],
+    origin: "",
+    storePath: join(dir, "store.json"),
+  };
+  let server = await createServer({
+    config: cfg,
+    telegram,
+    now: () => time,
+    leaseDuration,
+    mockFailure: failure,
+  });
+  await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
+  let base = `http://127.0.0.1:${server.address().port}`;
+  cfg.origin = base;
+  const request = (path, init = {}) => fetch(base + path, init);
+  const pair = async () => {
+    const p = await (await request("/api/pair", { method: "POST" })).json();
+    await request(`/api/telegram-auth?pair=${p.id}&mock=1`);
+    const result = await (
+      await request(`/api/pair/${p.id}`, {
+        headers: { authorization: `Bearer ${p.secret}` },
+      })
+    ).json();
+    return result.token;
+  };
+  return {
+    request,
+    pair,
+    tick: (n) => (time += n),
+    restart: async () => {
+      await new Promise((ok) => server.close(ok));
+      server = await createServer({
+        config: cfg,
+        telegram,
+        now: () => time,
+        leaseDuration,
+        mockFailure: failure,
+      });
+      await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
+      base = `http://127.0.0.1:${server.address().port}`;
+      cfg.origin = base;
+    },
+    close: async () => {
+      await new Promise((ok) => server.close(ok));
+      await rm(dir, { recursive: true });
+    },
+    cfg,
+  };
+}
+
+test("pairing is pending, secret protected, authorized, and consumed once", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const p = await (await f.request("/api/pair", { method: "POST" })).json();
+  assert.deepEqual(
+    await (
+      await f.request(`/api/pair/${p.id}`, {
+        headers: { authorization: `Bearer ${p.secret}` },
+      })
+    ).json(),
+    { pending: true },
+  );
+  assert.equal(
+    (
+      await f.request(`/api/pair/${p.id}`, {
+        headers: { authorization: "Bearer wrong" },
+      })
+    ).status,
+    401,
+  );
+  await f.request(`/api/telegram-auth?pair=${p.id}&mock=1`);
+  assert.ok(
+    (
+      await (
+        await f.request(`/api/pair/${p.id}`, {
+          headers: { authorization: `Bearer ${p.secret}` },
+        })
+      ).json()
+    ).token,
+  );
+  assert.equal(
+    (
+      await f.request(`/api/pair/${p.id}`, {
+        headers: { authorization: `Bearer ${p.secret}` },
+      })
+    ).status,
+    401,
+  );
+});
+
+test("validates Telegram signature, freshness, and membership", async (t) => {
+  let status = "member";
+  const calls = [];
+  const f = await fixture({
+    mock: false,
+    telegram: {
+      call: async (method) => {
+        calls.push(method);
+        return { status };
+      },
+    },
+  });
+  t.after(f.close);
+  async function login(age = 0, corrupt = false) {
+    const p = await (await f.request("/api/pair", { method: "POST" })).json();
+    const page = await f.request(`/login?id=${p.id}`);
+    const cookie = page.headers.get("set-cookie").split(";")[0];
+    assert.match(await page.text(), /data-telegram-login="scrollock_test_bot"/);
+    const fields = {
+      id: "42",
+      first_name: "Ada",
+      auth_date: String(1_800_000_000 - age),
+    };
+    const check = Object.entries(fields)
+      .sort()
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+    let hash = createHmac(
+      "sha256",
+      createHash("sha256").update(f.cfg.botToken).digest(),
+    )
+      .update(check)
+      .digest("hex");
+    if (corrupt) hash = "0".repeat(64);
+    return f.request(
+      `/api/telegram-auth?pair=${p.id}&${new URLSearchParams({ ...fields, hash })}`,
+      { headers: { cookie } },
+    );
+  }
+  assert.equal((await login(0, true)).status, 401);
+  assert.equal((await login(301)).status, 401);
+  status = "left";
+  assert.equal((await login()).status, 403);
+  status = "member";
+  assert.equal((await login()).status, 200);
+  assert.equal(
+    (await login()).status,
+    401,
+    "signed payload cannot be replayed",
+  );
+  await f.restart();
+  assert.equal(
+    (await login()).status,
+    401,
+    "replay protection survives restart",
+  );
+  assert.ok(calls.includes("getChatMember"));
+});
+
+test("unlock is five minutes, idempotent without extension, activity sanitizes and dedupes", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const token = await f.pair(),
+    auth = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+  const post = (path, value) =>
+    f.request(path, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify(value),
+    });
+  const a = await (await post("/api/unlock", { site: "youtube" })).json();
+  assert.equal(a.expiresAt, 1_800_000_300_000);
+  f.tick(1000);
+  const b = await (await post("/api/unlock", { site: "youtube" })).json();
+  assert.deepEqual(b, a);
+  assert.equal(
+    (await post("/api/activity", { unlockId: a.id, path: "/watch?v=secret" }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (await post("/api/activity", { unlockId: a.id, path: "/feed" })).status,
+    200,
+  );
+  assert.equal(
+    (await post("/api/activity", { unlockId: a.id, path: "/feed" })).status,
+    200,
+  );
+  let messages = await (await f.request("/__mock/messages")).json();
+  assert.equal(messages.messages.filter((x) => x.includes("/feed")).length, 1);
+  f.tick(299_001);
+  assert.equal(
+    (await post("/api/activity", { unlockId: a.id, path: "/late" })).status,
+    410,
+  );
+});
+
+test("rejects invalid inputs and fails unlock closed when reporting fails", async (t) => {
+  let fail = true;
+  const f = await fixture({ failure: () => fail });
+  t.after(f.close);
+  const token = await f.pair(),
+    headers = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+  const post = (value) =>
+    f.request("/api/unlock", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(value),
+    });
+  assert.equal((await post({ site: "other" })).status, 400);
+  assert.equal((await post({ site: "x" })).status, 502);
+  fail = false;
+  assert.equal((await post({ site: "x" })).status, 200);
+});
+
+test("lock reports and ends a lease", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const token = await f.pair(),
+    headers = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+  const lease = await (
+    await f.request("/api/unlock", {
+      method: "POST",
+      headers,
+      body: '{"site":"x"}',
+    })
+  ).json();
+  assert.equal(
+    (
+      await f.request("/api/lock", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ unlockId: lease.id }),
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await f.request("/api/activity", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ unlockId: lease.id, path: "/home" }),
+      })
+    ).status,
+    410,
+  );
+});
+
+test("concurrent unlocks share one durable lease and report", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const token = await f.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const unlock = () =>
+    f
+      .request("/api/unlock", { method: "POST", headers, body: '{"site":"x"}' })
+      .then((r) => r.json());
+  const leases = await Promise.all(Array.from({ length: 8 }, unlock));
+  assert.equal(new Set(leases.map((l) => l.id)).size, 1);
+  assert.equal(
+    (await (await f.request("/__mock/messages")).json()).messages.length,
+    1,
+  );
+  await f.restart();
+  assert.deepEqual(await unlock(), leases[0]);
+});
+
+test("CORS, login binding, pairing/session expiry, JSON validation, and production mock guard", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  assert.equal(
+    (
+      await f.request("/api/pair", {
+        method: "POST",
+        headers: { origin: "https://evil.example" },
+      })
+    ).status,
+    403,
+  );
+  const preflight = await f.request("/api/pair", {
+    method: "OPTIONS",
+    headers: { origin: "chrome-extension://abc" },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(
+    preflight.headers.get("access-control-allow-origin"),
+    "chrome-extension://abc",
+  );
+  const p = await (await f.request("/api/pair", { method: "POST" })).json();
+  f.tick(600001);
+  assert.equal(
+    (
+      await f.request(`/api/pair/${p.id}`, {
+        headers: { authorization: `Bearer ${p.secret}` },
+      })
+    ).status,
+    401,
+  );
+  const token = await f.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  for (const body of ["null", "[]", "{bad", '"string"'])
+    assert.equal(
+      (await f.request("/api/unlock", { method: "POST", headers, body }))
+        .status,
+      400,
+    );
+  f.tick(604800001);
+  assert.equal(
+    (
+      await f.request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"x"}',
+      })
+    ).status,
+    401,
+  );
+  assert.throws(
+    () => config({ NODE_ENV: "production", MOCK_TELEGRAM: "1" }),
+    /forbidden/,
+  );
+  assert.throws(
+    () => config({ MOCK_TELEGRAM: "1", HOST: "0.0.0.0" }),
+    /localhost/,
+  );
+  const live = await fixture({
+    mock: false,
+    telegram: {
+      call: async () => {
+        throw new Error("must not call");
+      },
+    },
+  });
+  t.after(live.close);
+  const lp = await (await live.request("/api/pair", { method: "POST" })).json();
+  assert.equal(
+    (
+      await live.request(
+        `/api/telegram-auth?pair=${lp.id}&hash=${"0".repeat(64)}`,
+      )
+    ).status,
+    401,
+  );
+});
+
+test("lock persists even if Telegram lock notification fails", async (t) => {
+  let fail = false;
+  const f = await fixture({ failure: () => fail });
+  t.after(f.close);
+  const token = await f.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const post = (path, data) =>
+    f.request(path, { method: "POST", headers, body: JSON.stringify(data) });
+  const lease = await (await post("/api/unlock", { site: "x" })).json();
+  fail = true;
+  assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 502);
+  await f.restart();
+  assert.equal(
+    (await post("/api/activity", { unlockId: lease.id, path: "/feed" })).status,
+    410,
+  );
+});

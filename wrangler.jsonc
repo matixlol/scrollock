@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scrollock",
+  "main": "worker/index.mjs",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "scrollock.putos.club",
+      "custom_domain": true,
+    },
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://scrollock.putos.club",
+    "TELEGRAM_BOT_USERNAME": "scrollock_bot",
+    "ALLOWED_ORIGINS": "chrome-extension://ahdgaahcjnpaegmopigcpgabcjmcilid",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STATE",
+        "class_name": "ScrollockState",
+      },
+    ],
+  },
+  "exports": {
+    "ScrollockState": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+}
