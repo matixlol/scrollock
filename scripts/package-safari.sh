@@ -14,4 +14,6 @@ xcrun safari-web-extension-packager "$ROOT/dist/safari" \
   --app-name Scrollock \
   --bundle-identifier "${SAFARI_BUNDLE_ID:-ar.com.poronga.Scrollock}" \
   --ios-only --swift --no-open
+/usr/libexec/PlistBuddy -c 'Add :ITSAppUsesNonExemptEncryption bool false' \
+  "$ROOT/safari/Scrollock/Scrollock/Info.plist"
 echo 'Open the generated Xcode project, select your signing team on both targets, then build and run on your iPhone.'
