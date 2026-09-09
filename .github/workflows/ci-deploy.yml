@@ -27,13 +27,15 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
-      - run: npm run build:production
 
       - name: Install Chromium
         run: npx playwright install chromium
 
       - name: Run extension end-to-end tests
         run: npm run test:e2e
+
+      - name: Build production extensions
+        run: npm run build:production
 
       - name: Create downloadable extension packages
         run: |
