@@ -14,9 +14,10 @@
     "start": "node server/index.mjs",
     "test": "node --test server/*.test.mjs tests/*.test.mjs worker/*.test.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "check": "node scripts/check.mjs && prettier --check extension scripts server tests worker package.json wrangler.jsonc README.md",
-    "format": "prettier --write extension scripts server tests worker package.json wrangler.jsonc README.md",
-    "safari:package": "bash scripts/package-safari.sh"
+    "check": "node scripts/check.mjs && prettier --check .github extension scripts server tests worker package.json wrangler.jsonc README.md",
+    "format": "prettier --write .github extension scripts server tests worker package.json wrangler.jsonc README.md",
+    "safari:package": "bash scripts/package-safari.sh",
+    "safari:deploy": "bash scripts/deploy-safari.sh"
   },
   "devDependencies": {
     "playwright": "^1.55.0",

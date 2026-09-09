@@ -77,6 +77,12 @@ npm run deploy
 curl https://scrollock.poronga.com.ar/health
 ```
 
+Pushes to `main` run the complete test suite, build downloadable Chrome and Safari ZIPs, deploy the Worker, check its production health endpoint, and publish the ZIPs on the [repository's latest GitHub Release](https://github.com/matixlol/scrollock/releases/latest). Pull requests run the same checks and build the packages without deploying. Configure this GitHub Actions repository secret:
+
+- `CLOUDFLARE_API_TOKEN` — a least-privilege token scoped to this account and the `poronga.com.ar` zone, with Workers Scripts and Workers Routes edit access
+
+Telegram credentials remain Cloudflare Worker secrets and are not copied to GitHub. Worker deployments preserve them.
+
 The production backend is a Worker at `scrollock.poronga.com.ar`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Add actual Safari origins to `ALLOWED_ORIGINS` after packaging.
 
 `GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions expire after seven days. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
@@ -101,6 +107,18 @@ For friends, distribute a signed build via TestFlight/App Store or your chosen v
 ### Without a Mac
 
 Apple now offers a **Safari Web Extension Packager in App Store Connect**. ZIP the contents of `dist/safari` (manifest at the ZIP root), upload, and follow Apple's packaging/TestFlight workflow. See [Apple's packaging guide](https://developer.apple.com/documentation/safariservices/converting-a-web-extension-for-safari).
+
+### Upload to TestFlight from a Mac
+
+On a Mac where Xcode is signed into the Apple developer team and the Apple Distribution certificate is available in Keychain, run:
+
+```sh
+npm run safari:deploy
+```
+
+This runs the checks, makes a production build, regenerates the native Xcode project, signs both targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new.
+
+The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacked extensions. Unzip it before using **Load unpacked**. Automatic signed Chrome installation and updates require a Chrome Web Store listing (or enterprise browser policy), which is intentionally outside this friends-only distribution.
 
 **Verification boundary:** the Safari resources and native Xcode project can be generated on macOS, but signing requires an Apple account in Xcode and Safari behavior must be checked on a real iPhone before TestFlight distribution. Playwright Chromium is not an iOS Safari extension runtime.
 

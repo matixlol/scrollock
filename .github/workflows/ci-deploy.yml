@@ -1,0 +1,100 @@
+name: CI, package, and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify and package extensions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run check
+      - run: npm run build:production
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run extension end-to-end tests
+        run: npm run test:e2e
+
+      - name: Create downloadable extension packages
+        run: |
+          (cd dist/chrome && zip -qr ../scrollock-chrome.zip .)
+          (cd dist/safari && zip -qr ../scrollock-safari.zip .)
+
+      - name: Upload extension packages
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: scrollock-extensions
+          path: |
+            dist/scrollock-chrome.zip
+            dist/scrollock-safari.zip
+          if-no-files-found: error
+
+  deploy-worker:
+    name: Deploy Cloudflare Worker
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: production-worker
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
+          packageManager: npm
+
+      - name: Verify production health
+        run: curl --fail --show-error --silent --retry 5 --retry-all-errors --retry-delay 3 https://scrollock.poronga.com.ar/health
+
+  publish-packages:
+    name: Publish GitHub release
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [verify, deploy-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download extension packages
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: scrollock-extensions
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            scrollock-chrome.zip \
+            scrollock-safari.zip \
+            --target "$GITHUB_SHA" \
+            --title "Scrollock build ${GITHUB_RUN_NUMBER}" \
+            --notes "Automated production extension packages for commit ${GITHUB_SHA}. Unzip the Chrome package before loading it as an unpacked extension." \
+            --latest

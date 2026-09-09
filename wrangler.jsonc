@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scrollock",
+  "account_id": "8c1fb84776f62f80a169c48250dae627",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-09-08",
   "workers_dev": false,
