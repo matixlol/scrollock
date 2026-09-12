@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "../extension/rules.js";
-const { siteForHost, blockedRoute, activityPath } = globalThis.ScrollockRules;
+const { siteForHost, blockedRoute } = globalThis.ScrollockRules;
 test("host matching cannot match lookalike domains", () => {
   assert.equal(siteForHost("m.youtube.com"), "youtube");
   assert.equal(siteForHost("evilx.com"), null);
@@ -27,9 +27,4 @@ test("feed routes block but direct links and messaging remain available", () => 
     ["youtube", "/results"],
   ])
     assert.equal(blockedRoute(site, path), false, site + path);
-});
-test("reports do not include personal paths", () => {
-  assert.equal(activityPath("x", "/alice/status/123"), "/other");
-  assert.equal(activityPath("instagram", "/direct/t/private"), "/messages");
-  assert.equal(activityPath("youtube", "/watch"), "/watch");
 });

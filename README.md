@@ -1,6 +1,6 @@
 # Scrollock
 
-Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instagram, and YouTube feeds by default. A Telegram-authenticated friend can unlock **one site for five minutes**, with accountability reports sent to **one fixed Telegram group**.
+Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instagram, and YouTube feeds by default. A Telegram-authenticated friend can unlock one site for a chosen **1–60 minute** duration after providing a reason, with the unblock intent sent to **one fixed Telegram group**.
 
 ## What it does
 
@@ -9,20 +9,16 @@ Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instag
 - **YouTube:** blocks Home, feed pages (including subscriptions), Shorts, and supported recommendation containers beside videos.
 - Direct messages, profiles, normal post links, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
 - A break applies to that site across tabs in the same browser. Reloading a page or closing the popup does not reset the deadline. Repeated unlock requests reuse the active deadline; another break after expiry sends another report.
-- A Telegram start report must succeed before an unlock is granted. A detected activity-report failure removes local access. Lock now takes effect locally even if its notification fails.
+- A Telegram unblock-intent report must succeed before an unlock is granted. Manual locking takes effect without sending another report.
 - Route changes are detected on single-page apps as well as full navigations. Only feed containers are hidden; the site's navigation and search controls remain usable. A pause notice sits inside the feed area, never over the whole page. Feed selectors may need updates when sites change their markup; unrecognized layouts are not replaced with a whole-page blocker.
 
 **This is cooperative accountability, not tamper-proof parental control.** Anyone can disable/uninstall the extension, revoke website permission, use another browser, or change its code. It cannot observe native X/Instagram/YouTube apps, clicks, likes, watched time, or browser activity outside the permitted sites. Hiding a page does not prevent that site's network requests or necessarily pause already-playing media. Website changes can require updates to supplemental recommendation selectors.
 
 ## Reporting and consent
 
-The popup and Telegram login page explain reporting before authorization. Group messages contain:
+The popup and Telegram login page explain reporting before authorization. Each successful new unlock sends one group message containing the authenticated Telegram user mention, site, selected duration, and trimmed reason. The reason is sent as plain text, not interpreted as markup. Repeated requests during an active lease send nothing and do not extend its deadline. Manual locks and browsing activity send nothing.
 
-1. Telegram display name and ID, the unlocked site, and the five-minute limit.
-2. The first visit to each category during that break: `/feed`, `/watch`, `/search`, `/messages`, or `/other`.
-3. A manual lock notification, if delivered.
-
-No message bodies, post content, titles, usernames from visited paths, full URLs, query strings, or search terms are collected. Categories are calculated inside the isolated content script and allowlisted again by the background and server. A `/messages` report only means a messages route was opened. **There is no fabricated “finished” report at expiry**: the start message already states the deadline, and each page enforces it locally. Reports already sent remain in Telegram under the group's retention policy.
+No browsing paths or activity, message bodies, post content, titles, full URLs, query strings, or search terms are collected or reported. The authenticated compatibility endpoint `POST /api/activity` accepts older clients as a no-op so their active leases are not disrupted. **There is no fabricated “finished” report at expiry**: each page enforces the deadline locally. Intent reports already sent remain in Telegram under the group's retention policy.
 
 ## Quick start: local mock Telegram
 
@@ -42,7 +38,7 @@ npm run build
 
 3. Pin Scrollock. Open its popup and choose **Connect**.
 4. On the explicitly labeled local test page, choose **Authorize fixture user**. Return to the popup and choose **Check login**.
-5. Visit one of the supported sites. Its feed should show **Feed blocked**. Choose **Unblock** on the page or in the popup to reveal that site's feed for five minutes. The extension follows the device's light/dark appearance.
+5. Visit one of the supported sites. Its feed should show **Feed blocked**. Choose a duration, enter a reason, and select **Unblock** on the page or in the popup. The extension follows the device's light/dark appearance.
 6. The mock server's `/__mock/messages` endpoint returns the reports. It is accessible only from loopback, never in production.
 
 Mock mode refuses `NODE_ENV=production` and non-loopback binding. It is for testing, not a way to authorize real friends. Do not expose the mock server through a public proxy.
@@ -87,7 +83,7 @@ The production backend is a Worker at `scrollock.poronga.com.ar`, with a single 
 
 ## iOS Safari installation
 
-The build produces **`dist/safari`** with a nonpersistent Safari background script and the same content/popup code. Target iOS 17+ with current Safari. Safari extensions work in **Safari websites**, not native social apps. Chrome on iOS does not load this Chrome extension.
+The build produces **`dist/safari`** with the same content/popup code. Target iOS 17+ with current Safari. The containing iPhone app adds optional **Screen Time controls for selected installed apps**: allow access, select individual apps for each site, then request timed unblocks with a reason in Safari. Only Scrollock's shields are removed; parental or other Screen Time limits still apply. App tokens stay on-device and no usage events are monitored. Native relocking uses iOS callbacks, which can be delayed. See [native implementation and distribution requirements](native/README.md). Chrome on iOS does not load this Chrome extension.
 
 ### With macOS + Xcode
 
@@ -98,13 +94,13 @@ SAFARI_BUNDLE_ID=ar.com.poronga.Scrollock npm run safari:package
 
 The script uses Apple's `safari-web-extension-packager` (previously named `safari-web-extension-converter`) to generate the native iOS containing app and extension target under `safari/`. It references `dist/safari`, so rebuild those resources after JS changes.
 
-Open the generated project, select your Apple signing team for both targets, review manifest compatibility warnings, build, and run on your iPhone. Enable Scrollock in Settings → Apps → Safari → Extensions (Settings → Safari on older iOS), grant access to all three websites, and allow its configured API host if Safari requests it. On a site, open Safari's extensions menu to access the popup. Authenticate, return to Safari, and check login.
+Open the generated project, select your Apple signing team for all three targets (app, Safari extension, Device Activity monitor), review manifest compatibility warnings, build, and run on your iPhone. Family Controls and the shared App Group require provisioning; distribution requires Apple's approval. Enable Scrollock in Settings → Apps → Safari → Extensions, grant access to all three websites, and allow its configured API host if Safari requests it. On a site, open Safari's extensions menu to access the popup. Authenticate, return to Safari, and check login.
 
 For friends, distribute a signed build via TestFlight/App Store or your chosen valid Apple development distribution route. Apple Developer membership/signing and each installation's permissions are required; copying an unpacked folder onto an iPhone is not installation.
 
 ### Without a Mac
 
-Apple now offers a **Safari Web Extension Packager in App Store Connect**. ZIP the contents of `dist/safari` (manifest at the ZIP root), upload, and follow Apple's packaging/TestFlight workflow. See [Apple's packaging guide](https://developer.apple.com/documentation/safariservices/converting-a-web-extension-for-safari).
+Apple offers a **Safari Web Extension Packager in App Store Connect** for the website-only extension ZIP. It does not include this repository's native Screen Time code or monitor target. Use the Xcode packaging workflow above for the complete app. See [Apple's packaging guide](https://developer.apple.com/documentation/safariservices/converting-a-web-extension-for-safari).
 
 ### Upload to TestFlight from a Mac
 
@@ -114,7 +110,7 @@ On a Mac where Xcode is signed into the Apple developer team and the Apple Distr
 npm run safari:deploy
 ```
 
-This runs the checks, makes a production build, regenerates the native Xcode project, signs both targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new.
+This runs the checks, makes a production build, regenerates the native Xcode project, signs all three targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new. Do not strip Screen Time entitlements to work around signing failures.
 
 The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacked extensions. Unzip it before using **Load unpacked**. Automatic signed Chrome installation and updates require a Chrome Web Store listing (or enterprise browser policy), which is intentionally outside this friends-only distribution.
 
@@ -133,21 +129,22 @@ npm run test:e2e
 
 The end-to-end test launches a real Chromium browser with the actual unpacked Chrome extension. It does **not** replace extension messaging or storage with mocks. It runs a local mock Telegram server and serves synthetic social pages at matching origins via network interception, without visiting real accounts.
 
-Coverage includes signed login validation/replay, group membership rejection, production mock guard, pairing/session expiry, API input/CORS validation, persistent leases, concurrent unlock deduplication, all three blocked/unblocked sites, cross-tab state, SPA reporting, reloads, closed-popup expiry, manual lock, private-data exclusion, and Telegram reporting failure. E2E injects a **15-second server lease** to exercise real timer expiry quickly; unit tests separately assert the production deadline is exactly **300,000 milliseconds**. Test screenshots are written to `.amp/in/artifacts/` for review.
+Coverage includes signed login validation/replay, group membership rejection, production mock guard, pairing/session expiry, API input/CORS validation, selected-duration boundaries, persistent leases, concurrent unlock deduplication, all three blocked/unblocked sites, cross-tab state, reloads, closed-popup expiry, manual lock, private-data exclusion, and Telegram reporting failure. E2E may inject a **15-second Node server lease override** to exercise real timer expiry quickly; production expiry uses the selected duration. Test screenshots are written to `.amp/in/artifacts/` for review.
 
 ### Real-device release checklist
 
 - Test current signed-in desktop sites and mobile Safari sites, not just fixtures.
 - Confirm Home/Explore/Reels/Shorts/feed pages are blocked; direct messages and normal links are accessible.
 - Complete real Telegram login as a member; reject a nonmember.
-- Unlock each site; confirm real group start/category reports, no full URLs or contents.
-- Wait a full five minutes with popup closed, reload, switch tabs, background Safari, and resume after the deadline. Confirm the feed relocks.
-- Disconnect the server or remove bot posting permission: unlock must fail; an existing break must relock when an activity report fails.
+- Unlock each site; confirm one real group intent report with its duration and reason, and no browsing-activity or lock reports.
+- Wait for the selected duration with popup closed, reload, switch tabs, background Safari, and resume after the deadline. Confirm the feed relocks.
+- Disconnect the server or remove bot posting permission: a new unlock must fail closed.
 - Verify browser permission prompts, Safari background execution, origin allowlisting, and your signed distribution build.
 
 ## Layout and credits
 
-- `extension/`: shared Web Extension, including blocking rules and privacy categorization.
+- `extension/`: shared Web Extension, including blocking rules and unblock forms.
+- `native/`: iOS Screen Time settings, Safari bridge, and timed relocking monitor.
 - `server/`: Telegram auth, fixed-group reporting, persistence, API tests.
 - `scripts/`: browser builds, syntax checks, Safari native packaging.
 - `tests/`: rule tests and actual-extension end-to-end test.

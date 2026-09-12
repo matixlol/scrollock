@@ -29,6 +29,21 @@ async function state() {
   stored.leases ||= {};
   return stored;
 }
+async function native(message) {
+  if (!api.runtime.getURL("").startsWith("safari-web-extension:")) return {};
+  try {
+    const result = await api.runtime.sendNativeMessage(
+      "ar.com.poronga.Scrollock",
+      message,
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result;
+  } catch (error) {
+    return {
+      warning: `Screen Time: ${error.message}. Open the app to check native app controls.`,
+    };
+  }
+}
 async function handle(message, sender) {
   const current = await state();
   const tabSite =
@@ -43,31 +58,13 @@ async function handle(message, sender) {
       leases: current.leases,
       pairing: !!current.pair,
     };
-  if (message.type === "activity") {
-    const lease = current.leases[site];
-    if (!lease || lease.expiresAt <= Date.now()) return {};
-    // sender.url can be the original document URL after SPA navigation.
-    // The isolated content script sends only a bounded category, never a URL.
-    const path = message.category;
-    if (!["/feed", "/messages", "/watch", "/search", "/other"].includes(path))
-      throw new Error("Invalid activity category");
-    try {
-      await request(
-        "/api/activity",
-        { unlockId: lease.id, path },
-        current.session?.token,
-      );
-    } catch (error) {
-      delete current.leases[site];
-      await api.storage.local.set({ leases: current.leases });
-      throw error;
-    }
-    return {};
-  }
+  // Ignore messages from an older content script without collecting activity.
+  if (message.type === "activity") return {};
   // Content scripts may unblock only their own site, derived from sender above.
   // Pairing, polling and manual locks remain restricted to extension pages.
   if (!trusted && message.type !== "unlock")
     throw new Error("Use the extension popup");
+  if (message.type === "native-status") return native({ type: "status" });
   if (message.type === "pair") {
     const pair = await request("/api/pair", {});
     await api.storage.local.set({ pair });
@@ -97,23 +94,28 @@ async function handle(message, sender) {
   if (message.type === "unlock") {
     if (!current.session)
       throw new Error("Connect Telegram in the extension first.");
-    const lease = await request("/api/unlock", { site }, current.session.token);
+    const lease = await request(
+      "/api/unlock",
+      { site, minutes: message.minutes, reason: message.reason },
+      current.session.token,
+    );
     current.leases[site] = lease;
     await api.storage.local.set({ leases: current.leases });
     await api.alarms.create("expire-" + site, { when: lease.expiresAt });
-    return {};
+    return native({ type: "unlock", site, expiresAt: lease.expiresAt });
   }
   if (message.type === "lock") {
     const lease = current.leases[site];
     delete current.leases[site];
     await api.storage.local.set({ leases: current.leases });
+    const result = await native({ type: "lock", site });
     if (lease)
       await request(
         "/api/lock",
         { unlockId: lease.id },
         current.session?.token,
       );
-    return {};
+    return result;
   }
   throw new Error("Unknown action");
 }
@@ -131,8 +133,10 @@ api.alarms.onAlarm.addListener(() => {
     .then(async () => {
       const current = await state();
       for (const site of sites)
-        if (current.leases[site]?.expiresAt <= Date.now())
+        if (current.leases[site]?.expiresAt <= Date.now()) {
           delete current.leases[site];
+          await native({ type: "lock", site });
+        }
       await api.storage.local.set({ leases: current.leases });
     });
 });

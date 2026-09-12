@@ -6,11 +6,14 @@ const names = {
   youtube: "YouTube",
 };
 let state = {},
-  busy = false;
+  busy = false,
+  selectedSite;
 const status = document.querySelector("#status");
-async function send(type, site) {
-  const result = await api.runtime.sendMessage({ type, site });
+const form = document.querySelector("#unlock-form");
+async function send(type, site, fields = {}) {
+  const result = await api.runtime.sendMessage({ type, site, ...fields });
   if (!result.ok) throw new Error(result.error);
+  if (result.warning) status.textContent = result.warning;
   return result;
 }
 function render() {
@@ -34,16 +37,18 @@ function render() {
       row.id = site;
       row.className = "site";
       row.innerHTML = `<div><strong>${name}</strong><p></p></div><button></button>`;
-      row
-        .querySelector("button")
-        .addEventListener("click", () =>
-          action(() =>
-            send(
-              state.leases?.[site]?.expiresAt > Date.now() ? "lock" : "unlock",
-              site,
-            ),
-          ),
-        );
+      row.querySelector("button").addEventListener("click", () => {
+        if (state.leases?.[site]?.expiresAt > Date.now())
+          return action(() => send("lock", site));
+        if (!state.user) {
+          status.textContent = "Connect Telegram in the extension first.";
+          return;
+        }
+        selectedSite = site;
+        form.hidden = false;
+        document.querySelector("#unlock-title").textContent = `Unblock ${name}`;
+        document.querySelector("#reason").focus();
+      });
       document.querySelector("#sites").append(row);
     }
     const remaining = Math.max(
@@ -58,7 +63,7 @@ function render() {
     button.textContent = remaining ? "Block" : "Unblock";
     button.setAttribute(
       "aria-label",
-      `${remaining ? "Block" : "Unblock"} ${name}${remaining ? "" : " for 5 minutes"}`,
+      `${remaining ? "Block" : "Unblock"} ${name}`,
     );
   }
   document
@@ -89,6 +94,38 @@ document
   .addEventListener("click", () =>
     action(() => send(state.pairing ? "poll" : "pair")),
   );
+document.querySelector("#cancel").addEventListener("click", () => {
+  form.hidden = true;
+});
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const reason = document.querySelector("#reason").value.trim();
+  if (!reason) {
+    status.textContent = "Enter a brief reason.";
+    return;
+  }
+  action(async () => {
+    await send("unlock", selectedSite, {
+      minutes: Number(document.querySelector("#minutes").value),
+      reason,
+    });
+    form.hidden = true;
+    document.querySelector("#reason").value = "";
+  });
+});
+if (api.runtime.getURL("").startsWith("safari-web-extension:")) {
+  send("native-status")
+    .then((result) => {
+      const note = document.querySelector("#native-status");
+      note.hidden = false;
+      note.textContent = result.authorized
+        ? "Screen Time connected. Manage selected apps in the iPhone app."
+        : "To block installed apps too, open the iPhone app and set up Screen Time.";
+    })
+    .catch((error) => {
+      status.textContent = error.message;
+    });
+}
 refresh().catch((error) => {
   status.textContent = error.message;
 });

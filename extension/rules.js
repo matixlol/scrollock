@@ -17,13 +17,5 @@
       return /^\/(?:feed(?:\/.*)?|shorts(?:\/.*)?)?$/.test(path);
     return false;
   };
-  // Deliberately report route categories, not usernames, search terms or video IDs.
-  const activityPath = (site, path) => {
-    if (blockedRoute(site, path)) return "/feed";
-    if (/^\/(?:messages|direct|inbox)(?:\/|$)/.test(path)) return "/messages";
-    if (site === "youtube" && path === "/watch") return "/watch";
-    if (/^\/(?:results|search)(?:\/|$)/.test(path)) return "/search";
-    return "/other";
-  };
-  globalThis.ScrollockRules = { siteForHost, blockedRoute, activityPath };
+  globalThis.ScrollockRules = { siteForHost, blockedRoute };
 })();

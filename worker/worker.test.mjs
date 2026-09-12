@@ -125,7 +125,7 @@ test("Safari installation origins can pair when enabled, without bypassing authe
   }
 });
 
-test("Worker pairing and durable five-minute lease survive object restart", async () => {
+test("Worker pairing and selected-duration lease survive object restart", async () => {
   const first = fixture();
   const token = await first.pair();
   const headers = {
@@ -136,13 +136,13 @@ test("Worker pairing and durable five-minute lease survive object restart", asyn
     first.request("/api/unlock", {
       method: "POST",
       headers,
-      body: '{"site":"youtube"}',
+      body: '{"site":"youtube","minutes":17,"reason":"focus"}',
     });
   const leases = await Promise.all(
     Array.from({ length: 8 }, async () => (await unlock()).json()),
   );
   assert.equal(new Set(leases.map((lease) => lease.id)).size, 1);
-  assert.equal(leases[0].expiresAt, 1_800_000_300_000);
+  assert.equal(leases[0].expiresAt, 1_800_001_020_000);
   assert.equal(
     (await (await first.request("/__mock/messages")).json()).messages.length,
     1,
@@ -153,7 +153,7 @@ test("Worker pairing and durable five-minute lease survive object restart", asyn
     await restarted.request("/api/unlock", {
       method: "POST",
       headers,
-      body: '{"site":"youtube"}',
+      body: '{"site":"youtube","minutes":60,"reason":"do not extend"}',
     })
   ).json();
   assert.deepEqual(repeated, leases[0]);
@@ -179,6 +179,7 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
   const fields = {
     id: "42",
     first_name: "Ada",
+    username: "ada_lovelace",
     auth_date: "1800000000",
   };
   const check = Object.entries(fields)
@@ -194,6 +195,12 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
   const callback = `/api/telegram-auth?pair=${pairing.id}&${new URLSearchParams({ ...fields, hash })}`;
   assert.equal((await request(callback)).status, 401, "cookie is required");
   assert.equal((await request(callback, { headers: { cookie } })).status, 200);
+  const session = await (
+    await request(`/api/pair/${pairing.id}`, {
+      headers: { authorization: `Bearer ${pairing.secret}` },
+    })
+  ).json();
+  assert.equal(session.user.username, "ada_lovelace");
 
   const second = await (await request("/api/pair", { method: "POST" })).json();
   const secondLogin = await request(`/login?id=${second.id}`);
@@ -209,7 +216,64 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
   );
 });
 
-test("Worker validates CORS and activity categories, deduplicates reports, and persists lock", async () => {
+test("Worker sends real mentions, including existing sessions without usernames", async () => {
+  const value = fixture();
+  const token = await value.pair();
+  const session = await value.storage.get(`session:${token}`);
+  value.state.env.MOCK_TELEGRAM = "0";
+  value.state.env.PUBLIC_ORIGIN = "https://scrollock.poronga.com.ar";
+  value.state.env.TELEGRAM_BOT_TOKEN = "123:secret";
+  value.state.env.TELEGRAM_BOT_USERNAME = "scrollock_bot";
+  value.state.env.TELEGRAM_GROUP_ID = "-1";
+  const messages = [];
+  value.state.telegram = async (method, data) => {
+    if (method === "sendMessage") messages.push(data);
+    return { status: "member" };
+  };
+  const post = (path, body) =>
+    value.request(path, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  for (const username of ["ada_lovelace", undefined]) {
+    session.user = {
+      id: 42,
+      name: "Ada 🦊 <&> _*",
+      ...(username ? { username } : {}),
+    };
+    await value.storage.put(`session:${token}`, session);
+    const lease = await (
+      await post("/api/unlock", {
+        site: "youtube",
+        minutes: 17,
+        reason: "  focus <b>now</b>  ",
+      })
+    ).json();
+    assert.ok(lease.id);
+    assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 200);
+    assert.equal(messages.length, 1);
+    for (const message of messages.splice(0)) {
+      assert.ok(
+        message.text.startsWith(username ? "@ada_lovelace " : "Ada 🦊 <&> _* "),
+      );
+      assert.ok(!message.text.includes("(42)"));
+      assert.match(
+        message.text,
+        /17-minute youtube unlock: focus <b>now<\/b>$/,
+      );
+      assert.equal(message.parse_mode, undefined);
+      assert.deepEqual(message.entities, [
+        { type: "text_link", offset: 0, length: 13, url: "tg://user?id=42" },
+      ]);
+    }
+  }
+});
+
+test("Worker validates unlock input, ignores activity, and persists lock", async () => {
   const value = fixture();
   assert.equal(
     (
@@ -231,25 +295,24 @@ test("Worker validates CORS and activity categories, deduplicates reports, and p
       headers,
       body: JSON.stringify(body),
     });
-  const lease = await (await post("/api/unlock", { site: "x" })).json();
+  const valid = { site: "x", minutes: 1, reason: "focus" };
+  for (const input of [
+    { ...valid, minutes: 0 },
+    { ...valid, minutes: 61 },
+    { ...valid, minutes: 1.5 },
+    { ...valid, reason: " " },
+    { ...valid, reason: "x".repeat(281) },
+  ])
+    assert.equal((await post("/api/unlock", input)).status, 400);
+  const lease = await (await post("/api/unlock", valid)).json();
+  assert.equal(lease.expiresAt, 1_800_000_060_000);
   assert.equal(
-    (await post("/api/activity", { unlockId: lease.id, path: "/watch?secret" }))
-      .status,
-    400,
-  );
-  assert.equal(
-    (await post("/api/activity", { unlockId: lease.id, path: "/messages" }))
-      .status,
-    200,
-  );
-  assert.equal(
-    (await post("/api/activity", { unlockId: lease.id, path: "/messages" }))
-      .status,
+    (await post("/api/activity", { private: "secret" })).status,
     200,
   );
   assert.equal(
     (await (await value.request("/__mock/messages")).json()).messages.length,
-    2,
+    1,
   );
   assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 200);
 
@@ -262,6 +325,6 @@ test("Worker validates CORS and activity categories, deduplicates reports, and p
         body: JSON.stringify({ unlockId: lease.id, path: "/feed" }),
       })
     ).status,
-    410,
+    200,
   );
 });

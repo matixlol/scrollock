@@ -6,12 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, config } from "./server.mjs";
 
-async function fixture({
-  mock = true,
-  telegram,
-  failure,
-  leaseDuration = 300_000,
-} = {}) {
+async function fixture({ mock = true, telegram, failure, leaseDuration } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "scrollock-"));
   let time = 1_800_000_000_000;
   const cfg = {
@@ -169,7 +164,92 @@ test("validates Telegram signature, freshness, and membership", async (t) => {
   assert.ok(calls.includes("getChatMember"));
 });
 
-test("unlock is five minutes, idempotent without extension, activity sanitizes and dedupes", async (t) => {
+test("Telegram reports mention the authenticated user with or without a username", async (t) => {
+  const messages = [];
+  const f = await fixture({
+    mock: false,
+    telegram: {
+      call: async (method, data) => {
+        if (method === "sendMessage") messages.push(data);
+        return { status: "member" };
+      },
+    },
+  });
+  t.after(f.close);
+  for (const username of ["ada_lovelace", undefined]) {
+    const p = await (await f.request("/api/pair", { method: "POST" })).json();
+    const login = await f.request(`/login?id=${p.id}`);
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+    const fields = {
+      id: username ? "42" : "43",
+      first_name: "Ada 🦊 <&> _*",
+      auth_date: "1800000000",
+      ...(username ? { username } : {}),
+    };
+    const hash = createHmac(
+      "sha256",
+      createHash("sha256").update(f.cfg.botToken).digest(),
+    )
+      .update(
+        Object.entries(fields)
+          .sort()
+          .map(([key, value]) => `${key}=${value}`)
+          .join("\n"),
+      )
+      .digest("hex");
+    assert.equal(
+      (
+        await f.request(
+          `/api/telegram-auth?pair=${p.id}&${new URLSearchParams({ ...fields, hash })}`,
+          { headers: { cookie } },
+        )
+      ).status,
+      200,
+    );
+    const session = await (
+      await f.request(`/api/pair/${p.id}`, {
+        headers: { authorization: `Bearer ${p.secret}` },
+      })
+    ).json();
+    assert.equal(session.user.username, username);
+    const post = (path, body) =>
+      f.request(path, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${session.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    const lease = await (
+      await post("/api/unlock", {
+        site: "x",
+        minutes: 17,
+        reason: "  focus <b>now</b>  ",
+      })
+    ).json();
+    assert.ok(lease.id);
+    assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 200);
+    const label = username ? "@ada_lovelace" : fields.first_name;
+    assert.equal(messages.length, 1);
+    for (const message of messages.splice(0)) {
+      assert.ok(message.text.startsWith(`${label} `));
+      assert.match(message.text, /17-minute x unlock: focus <b>now<\/b>$/);
+      assert.ok(!message.text.includes(`(${fields.id})`));
+      assert.equal(message.parse_mode, undefined);
+      assert.deepEqual(message.entities, [
+        {
+          type: "text_link",
+          offset: 0,
+          length: 13,
+          url: `tg://user?id=${fields.id}`,
+        },
+      ]);
+    }
+  }
+});
+
+test("unlock uses selected durations, is idempotent, and activity is a no-op", async (t) => {
   const f = await fixture();
   t.after(f.close);
   const token = await f.pair(),
@@ -183,31 +263,32 @@ test("unlock is five minutes, idempotent without extension, activity sanitizes a
       headers: auth,
       body: JSON.stringify(value),
     });
-  const a = await (await post("/api/unlock", { site: "youtube" })).json();
-  assert.equal(a.expiresAt, 1_800_000_300_000);
+  const a = await (
+    await post("/api/unlock", {
+      site: "youtube",
+      minutes: 17,
+      reason: " break ",
+    })
+  ).json();
+  assert.equal(a.expiresAt, 1_800_001_020_000);
   f.tick(1000);
-  const b = await (await post("/api/unlock", { site: "youtube" })).json();
+  const b = await (
+    await post("/api/unlock", {
+      site: "youtube",
+      minutes: 60,
+      reason: "longer",
+    })
+  ).json();
   assert.deepEqual(b, a);
   assert.equal(
-    (await post("/api/activity", { unlockId: a.id, path: "/watch?v=secret" }))
-      .status,
-    400,
-  );
-  assert.equal(
-    (await post("/api/activity", { unlockId: a.id, path: "/feed" })).status,
+    (await post("/api/activity", { private: "full URL" })).status,
     200,
   );
-  assert.equal(
-    (await post("/api/activity", { unlockId: a.id, path: "/feed" })).status,
-    200,
-  );
-  let messages = await (await f.request("/__mock/messages")).json();
-  assert.equal(messages.messages.filter((x) => x.includes("/feed")).length, 1);
-  f.tick(299_001);
-  assert.equal(
-    (await post("/api/activity", { unlockId: a.id, path: "/late" })).status,
-    410,
-  );
+  assert.equal((await post("/api/activity", null)).status, 200);
+  const messages = await (await f.request("/__mock/messages")).json();
+  assert.deepEqual(messages.messages, [
+    "Fixture User requested a 17-minute youtube unlock: break",
+  ]);
 });
 
 test("rejects invalid inputs and fails unlock closed when reporting fails", async (t) => {
@@ -225,13 +306,36 @@ test("rejects invalid inputs and fails unlock closed when reporting fails", asyn
       headers,
       body: JSON.stringify(value),
     });
-  assert.equal((await post({ site: "other" })).status, 400);
-  assert.equal((await post({ site: "x" })).status, 502);
+  const valid = { site: "x", minutes: 1, reason: "ok" };
+  for (const input of [
+    { ...valid, site: "other" },
+    { ...valid, minutes: 0 },
+    { ...valid, minutes: 61 },
+    { ...valid, minutes: 1.5 },
+    { ...valid, minutes: "1" },
+    { ...valid, reason: "   " },
+    { ...valid, reason: 42 },
+    { ...valid, reason: "x".repeat(281) },
+    { site: "x", minutes: 1 },
+  ])
+    assert.equal((await post(input)).status, 400);
+  assert.equal((await post(valid)).status, 502);
   fail = false;
-  assert.equal((await post({ site: "x" })).status, 200);
+  for (const minutes of [1, 60]) {
+    const response = await post({
+      site: minutes === 1 ? "x" : "instagram",
+      minutes,
+      reason: "x".repeat(280),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(
+      (await response.json()).expiresAt,
+      1_800_000_000_000 + minutes * 60_000,
+    );
+  }
 });
 
-test("lock reports and ends a lease", async (t) => {
+test("lock ends a lease without reporting", async (t) => {
   const f = await fixture();
   t.after(f.close);
   const token = await f.pair(),
@@ -243,7 +347,7 @@ test("lock reports and ends a lease", async (t) => {
     await f.request("/api/unlock", {
       method: "POST",
       headers,
-      body: '{"site":"x"}',
+      body: '{"site":"x","minutes":1,"reason":"done"}',
     })
   ).json();
   assert.equal(
@@ -264,8 +368,27 @@ test("lock reports and ends a lease", async (t) => {
         body: JSON.stringify({ unlockId: lease.id, path: "/home" }),
       })
     ).status,
-    410,
+    200,
   );
+  assert.equal(
+    (await (await f.request("/__mock/messages")).json()).messages.length,
+    1,
+  );
+});
+
+test("Node leaseDuration explicitly overrides selected duration", async (t) => {
+  const f = await fixture({ leaseDuration: 15_000 });
+  t.after(f.close);
+  const token = await f.pair();
+  const response = await f.request("/api/unlock", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ site: "x", minutes: 60, reason: "fast E2E" }),
+  });
+  assert.equal((await response.json()).expiresAt, 1_800_000_015_000);
 });
 
 test("concurrent unlocks share one durable lease and report", async (t) => {
@@ -278,7 +401,11 @@ test("concurrent unlocks share one durable lease and report", async (t) => {
   };
   const unlock = () =>
     f
-      .request("/api/unlock", { method: "POST", headers, body: '{"site":"x"}' })
+      .request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"x","minutes":17,"reason":"focus"}',
+      })
       .then((r) => r.json());
   const leases = await Promise.all(Array.from({ length: 8 }, unlock));
   assert.equal(new Set(leases.map((l) => l.id)).size, 1);
@@ -315,7 +442,7 @@ test("Node backend supports opt-in Safari origins and still requires a session",
       await f.request("/api/unlock", {
         method: "POST",
         headers: { origin, "content-type": "application/json" },
-        body: '{"site":"x"}',
+        body: '{"site":"x","minutes":1,"reason":"focus"}',
       })
     ).status,
     401,
@@ -418,7 +545,7 @@ test("CORS, login binding, pairing/session expiry, JSON validation, and producti
   );
 });
 
-test("lock persists even if Telegram lock notification fails", async (t) => {
+test("lock persists without a Telegram lock notification", async (t) => {
   let fail = false;
   const f = await fixture({ failure: () => fail });
   t.after(f.close);
@@ -429,12 +556,14 @@ test("lock persists even if Telegram lock notification fails", async (t) => {
   };
   const post = (path, data) =>
     f.request(path, { method: "POST", headers, body: JSON.stringify(data) });
-  const lease = await (await post("/api/unlock", { site: "x" })).json();
+  const lease = await (
+    await post("/api/unlock", { site: "x", minutes: 1, reason: "focus" })
+  ).json();
   fail = true;
-  assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 502);
+  assert.equal((await post("/api/lock", { unlockId: lease.id })).status, 200);
   await f.restart();
   assert.equal(
     (await post("/api/activity", { unlockId: lease.id, path: "/feed" })).status,
-    410,
+    200,
   );
 });

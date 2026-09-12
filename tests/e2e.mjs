@@ -30,6 +30,7 @@ execFileSync(process.execPath, ["scripts/build.mjs"], {
   stdio: "inherit",
 });
 let context;
+const apiRequests = [];
 async function eventually(check, label, timeout = 20000) {
   const until = Date.now() + timeout;
   while (Date.now() < until) {
@@ -48,7 +49,7 @@ async function checkTouchLayout(popup, state) {
       true,
       `${state}: no horizontal overflow at ${width}px`,
     );
-    for (const button of await popup.locator("button").all()) {
+    for (const button of await popup.locator("button:visible").all()) {
       const box = await button.boundingBox();
       assert.ok(box.height >= 44, "touch target at least 44px high");
       assert.ok(box.x >= 0 && box.x + box.width <= width, "button fits sheet");
@@ -84,6 +85,76 @@ async function clickInlineUnblock(page) {
   const box = await page.locator("#scrollock-gate").boundingBox();
   await page.mouse.click(box.x + box.width - 50, box.y + 38);
 }
+async function inlineControl(page, matcher) {
+  const cdp = await page.context().newCDPSession(page);
+  const { root } = await cdp.send("DOM.getDocument", {
+    depth: -1,
+    pierce: true,
+  });
+  function find(node) {
+    if (matcher(node)) return node;
+    for (const child of [
+      ...(node.children || []),
+      ...(node.shadowRoots || []),
+    ]) {
+      const match = find(child);
+      if (match) return match;
+    }
+  }
+  function findGate(node) {
+    if (node.attributes?.includes("scrollock-gate")) return node;
+    for (const child of node.children || []) {
+      const match = findGate(child);
+      if (match) return match;
+    }
+  }
+  const gateNode = findGate(root);
+  assert.ok(gateNode, "inline gate found through CDP inspection");
+  const node = (gateNode.shadowRoots || []).map(find).find(Boolean);
+  assert.ok(node, "closed-shadow control found through CDP inspection");
+  const { model } = await cdp.send("DOM.getBoxModel", { nodeId: node.nodeId });
+  const x =
+    (model.border[0] + model.border[2] + model.border[4] + model.border[6]) / 4;
+  const y =
+    (model.border[1] + model.border[3] + model.border[5] + model.border[7]) / 4;
+  await cdp.detach();
+  return { x, y };
+}
+async function fillInline(page, minutes, reason) {
+  const input = await inlineControl(page, (node) => node.nodeName === "INPUT");
+  await page.mouse.click(input.x, input.y);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(String(minutes));
+  const textarea = await inlineControl(
+    page,
+    (node) => node.nodeName === "TEXTAREA",
+  );
+  await page.mouse.click(textarea.x, textarea.y);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(reason);
+}
+async function submitInline(page) {
+  const submit = await inlineControl(
+    page,
+    (node) =>
+      node.nodeName === "BUTTON" &&
+      (node.attributes || []).some(
+        (value, index, attributes) =>
+          value === "type" && attributes[index + 1] === "submit",
+      ),
+  );
+  await page.mouse.click(submit.x, submit.y);
+}
+async function openPopupForm(popup, site) {
+  await popup.locator(`#${site} button`).click();
+  await popup.locator("#unlock-form").waitFor({ state: "visible" });
+}
+async function submitPopupForm(popup, site, minutes, reason) {
+  await openPopupForm(popup, site);
+  await popup.locator("#minutes").fill(String(minutes));
+  await popup.locator("#reason").fill(reason);
+  await popup.locator('#unlock-form button[type="submit"]').click();
+}
 try {
   const extension = resolve("dist/chrome");
   context = await chromium.launchPersistentContext(join(temp, "browser"), {
@@ -104,6 +175,13 @@ try {
       ? worker.url().split("/").slice(0, 3).join("/")
       : new URL(worker.url()).origin;
   cfg.origins.push(extensionOrigin);
+  context.on("request", (request) => {
+    try {
+      const url = new URL(request.url());
+      if (url.origin === cfg.origin && url.pathname.startsWith("/api/"))
+        apiRequests.push(url.pathname);
+    } catch {}
+  });
   const popup = await context.newPage();
   const errors = [];
   popup.on("pageerror", (error) => errors.push(error.message));
@@ -198,6 +276,16 @@ try {
   });
   await checkAppearance(pages.x, "#scrollock-gate", "feed");
   await clickInlineUnblock(pages.x);
+  for (const colorScheme of ["light", "dark"]) {
+    await pages.x.emulateMedia({ colorScheme });
+    await pages.x.screenshot({
+      path: join(artifacts, `inline-form-${colorScheme}.png`),
+      fullPage: true,
+    });
+  }
+  await pages.x.emulateMedia({ colorScheme: "light" });
+  await fillInline(pages.x, 5, "not authenticated yet");
+  await submitInline(pages.x);
   assert.equal(await pages.x.locator("#feed").isVisible(), false);
   const desktop = await context.newPage();
   for (const path of ["/", "/feed/subscriptions", "/feed/history"]) {
@@ -236,7 +324,48 @@ try {
   );
   await checkTouchLayout(popup, "connected");
 
-  await clickInlineUnblock(pages.x);
+  // Popup validation must never create a lease. The form is intentionally kept
+  // open and retains user input while the one-second state refresh runs.
+  const reportsBeforeValidation = (
+    await (await fetch(cfg.origin + "/__mock/messages")).json()
+  ).messages.length;
+  await openPopupForm(popup, "x");
+  await popup.locator("#minutes").fill("17");
+  await popup.locator("#reason").fill("Finish release notes exactly");
+  await new Promise((ok) => setTimeout(ok, 1200));
+  assert.equal(await popup.locator("#unlock-form").isVisible(), true);
+  assert.equal(await popup.locator("#minutes").inputValue(), "17");
+  assert.equal(
+    await popup.locator("#reason").inputValue(),
+    "Finish release notes exactly",
+  );
+  await checkAppearance(popup, "html", "popup-expanded-form");
+  await popup.locator("#reason").fill("   ");
+  await popup.locator('#unlock-form button[type="submit"]').click();
+  assert.match(await popup.locator("#status").textContent(), /brief reason/i);
+  assert.equal(await popup.locator("#unlock-form").isVisible(), true);
+  assert.equal(await popup.locator("#reason").inputValue(), "   ");
+  await popup.locator("#cancel").click();
+  assert.equal(await popup.locator("#unlock-form").isHidden(), true);
+  assert.equal(
+    (await (await fetch(cfg.origin + "/__mock/messages")).json()).messages
+      .length,
+    reportsBeforeValidation,
+  );
+  await openPopupForm(popup, "x");
+  await popup.locator("#minutes").fill("0");
+  await popup.locator("#reason").fill("Invalid duration");
+  await popup.locator('#unlock-form button[type="submit"]').click();
+  assert.equal(await popup.locator("#unlock-form").isVisible(), true);
+  assert.equal(await pages.x.locator("#feed").isVisible(), false);
+  assert.equal(
+    (await (await fetch(cfg.origin + "/__mock/messages")).json()).messages
+      .length,
+    reportsBeforeValidation,
+  );
+  await popup.locator("#cancel").click();
+  await fillInline(pages.x, 17, "Finish release notes exactly");
+  await submitInline(pages.x);
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
     "X unlock",
@@ -251,13 +380,18 @@ try {
     "popup reflects inline unblock",
   );
   // A page cannot choose another site or invoke privileged extension actions.
-  await worker.evaluate(async () => {
+  const crossSiteError = await worker.evaluate(async () => {
     const sender = {
       url: "https://x.com/home",
       tab: { url: "https://x.com/home" },
     };
-    await handle({ type: "unlock", site: "instagram" }, sender);
+    try {
+      await handle({ type: "unlock", site: "instagram" }, sender);
+    } catch (error) {
+      return error.message;
+    }
   });
+  assert.match(crossSiteError, /duration|minutes|reason/i);
   assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
   for (const type of ["pair", "poll", "lock"]) {
     const error = await worker.evaluate(async (type) => {
@@ -278,13 +412,7 @@ try {
   await pages.x.evaluate(() =>
     history.pushState({}, "", "/alice/status/123?private=secret"),
   );
-  await eventually(
-    async () =>
-      (
-        await (await fetch(cfg.origin + "/__mock/messages")).json()
-      ).messages.some((m) => m.includes("x: /other")),
-    "SPA activity report",
-  );
+  await new Promise((ok) => setTimeout(ok, 500));
   await pages.x.reload();
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
@@ -293,13 +421,6 @@ try {
   await popup
     .getByRole("button", { name: "Block X / Twitter", exact: true })
     .click();
-  await eventually(
-    async () =>
-      (
-        await (await fetch(cfg.origin + "/__mock/messages")).json()
-      ).messages.some((message) => message.includes("locked x")),
-    "manual block reported",
-  );
   await pages.x.goto("https://x.com/home");
   await eventually(
     () => pages.x.locator("html[data-scrollock-blocked]").count(),
@@ -307,7 +428,7 @@ try {
   );
 
   for (const site of ["instagram", "youtube"]) {
-    await popup.locator(`#${site} button`).click();
+    await submitPopupForm(popup, site, 5, `Check ${site} intentionally`);
     await eventually(
       () => pages[site].locator("html[data-scrollock-unlocked]").count(),
       site + " unlock",
@@ -364,7 +485,7 @@ try {
   reportingFails = true;
   const again = await context.newPage();
   await again.goto(extensionOrigin + "/popup.html");
-  await again.locator("#x button").click();
+  await submitPopupForm(again, "x", 5, "Test report failure");
   await eventually(
     () => again.locator("#status").textContent().then(Boolean),
     "report failure visible",
@@ -374,7 +495,7 @@ try {
     .locator("body")
     .screenshot({ path: join(artifacts, "scrollock-report-failure.png") });
   reportingFails = false;
-  await again.locator("#x button").click();
+  await again.locator('#unlock-form button[type="submit"]').click();
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
     "recovery after bot failure",
@@ -385,29 +506,46 @@ try {
     () => secondX.locator("html[data-scrollock-unlocked]").count(),
     "second X tab unlocked",
   );
-  reportingFails = true;
   await secondX.evaluate(() =>
     history.pushState({}, "", "/someone/status/456"),
   );
+  await secondX.reload();
   await eventually(
-    () => pages.x.locator("html[data-scrollock-blocked]").count(),
-    "activity failure revokes all local tabs",
+    () => secondX.locator("html[data-scrollock-unlocked]").count(),
+    "SPA and reload do not revoke lease",
   );
-  assert.equal(await pages.x.locator("#feed").isVisible(), false);
   const { messages } = await (
     await fetch(cfg.origin + "/__mock/messages")
   ).json();
-  assert.ok(messages.some((m) => m.includes("started a 5-minute x unlock")));
-  assert.ok(messages.some((m) => m.includes("locked x")));
-  assert.ok(messages.some((m) => m.includes("instagram: /feed")));
-  assert.ok(messages.some((m) => m.includes("youtube: /feed")));
+  assert.ok(
+    messages.includes(
+      "Fixture User requested a 17-minute x unlock: Finish release notes exactly",
+    ),
+    `exact selected-duration report missing: ${JSON.stringify(messages)}`,
+  );
+  assert.ok(
+    messages.includes(
+      "Fixture User requested a 5-minute instagram unlock: Check instagram intentionally",
+    ),
+  );
+  assert.ok(
+    messages.includes(
+      "Fixture User requested a 5-minute youtube unlock: Check youtube intentionally",
+    ),
+  );
+  assert.ok(!messages.some((m) => /locked|\/feed|activity/i.test(m)));
   assert.ok(!messages.some((m) => /alice|secret|private|123/.test(m)));
+  assert.equal(
+    apiRequests.filter((path) => path === "/api/activity").length,
+    0,
+    "SPA navigation and reload never issue activity requests",
+  );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: real Chrome extension + mock Telegram: login, all 3 sites, isolation, SPA activity, reload, cross-tab expiry, closed-popup expiry, manual lock, privacy, bot failure.",
+    "PASS: real Chrome extension + mock Telegram: required unlock forms, validation, exact reports, login, isolation, SPA/reload privacy, cross-tab expiry, closed-popup expiry, manual lock, and bot failure.",
   );
   console.log(
-    "Expiry uses a 15-second server test lease; unit tests assert the production 300,000ms lease.",
+    "Expiry uses a 15-second server test lease; unit tests assert selected production durations from 1 to 60 minutes.",
   );
   console.log("Mock reports:", JSON.stringify(messages, null, 2));
 } finally {

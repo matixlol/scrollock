@@ -33,4 +33,5 @@ cat > "$ROOT/safari/Scrollock/Scrollock/Resources/Base.lproj/Main.html" <<'HTML'
 </body>
 </html>
 HTML
-echo 'Open the generated Xcode project, select your signing team on both targets, then build and run on your iPhone.'
+python3 "$ROOT/scripts/configure-native.py"
+echo 'Open the generated Xcode project, select your signing team on all three targets, then build and run on your iPhone. Distribution requires Family Controls approval.'

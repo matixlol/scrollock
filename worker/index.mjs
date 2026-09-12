@@ -1,6 +1,5 @@
 const encoder = new TextEncoder();
 const SITES = new Set(["x", "instagram", "youtube"]);
-const PATHS = new Set(["/feed", "/messages", "/watch", "/search", "/other"]);
 
 const escapeHtml = (value) =>
   String(value).replace(
@@ -155,7 +154,9 @@ export class ScrollockState {
     return result.result;
   }
 
-  async report(text, config) {
+  async report(user, message, config) {
+    const label = user.username ? `@${user.username}` : user.name;
+    const text = `${label} ${message}`;
     if (config.mock) {
       if (this.env.MOCK_FAILURE?.()) throw new Error("mock failure");
       this.messages.push(text);
@@ -164,6 +165,14 @@ export class ScrollockState {
     await this.telegram("sendMessage", {
       chat_id: this.env.TELEGRAM_GROUP_ID,
       text,
+      entities: [
+        {
+          type: "text_link",
+          offset: 0,
+          length: label.length,
+          url: `tg://user?id=${user.id}`,
+        },
+      ],
     });
   }
 
@@ -273,7 +282,7 @@ export class ScrollockState {
         ? `<form method="get" action="/api/telegram-auth"><input type="hidden" name="pair" value="${escapeHtml(pairId)}"><input type="hidden" name="mock" value="1"><button>Authorize fixture user</button></form>`
         : `<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${escapeHtml(this.env.TELEGRAM_BOT_USERNAME)}" data-size="large" data-auth-url="${escapeHtml(config.origin)}/api/telegram-auth?pair=${encodeURIComponent(pairId)}"></script>`;
       return new Response(
-        `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Connect Telegram</title><style>body{background:Canvas;color:CanvasText;font:16px/1.5 system-ui;max-width:420px;margin:32px auto;padding:16px}h1{font-size:20px}button{background:ButtonFace;color:ButtonText;min-height:44px;padding:8px 12px;border:1px solid GrayText;border-radius:6px;cursor:pointer;font:inherit}</style><h1>Connect Telegram</h1><p>Unblock feeds for 5 minutes. Your group receives your name, site and route categories. No messages, searches or page contents.</p>${config.mock ? "<p><strong>LOCAL TEST · Mock Telegram</strong></p>" : ""}${widget}<p>Group membership is required. Return to the extension after authorizing.</p></html>`,
+        `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Connect Telegram</title><style>body{background:Canvas;color:CanvasText;font:16px/1.5 system-ui;max-width:420px;margin:32px auto;padding:16px}h1{font-size:20px}button{background:ButtonFace;color:ButtonText;min-height:44px;padding:8px 12px;border:1px solid GrayText;border-radius:6px;cursor:pointer;font:inherit}</style><h1>Connect Telegram</h1><p>Choose how long to unblock a feed and give a reason. Your group receives only your name, site, selected duration, and reason. Browsing activity is not reported.</p>${config.mock ? "<p><strong>LOCAL TEST · Mock Telegram</strong></p>" : ""}${widget}<p>Group membership is required. Return to the extension after authorizing.</p></html>`,
         {
           headers: {
             ...secureHeaders,
@@ -340,6 +349,7 @@ export class ScrollockState {
         await this.storage.put(replayKey, this.now() + 600_000);
         user = {
           id: Number(url.searchParams.get("id")),
+          username: url.searchParams.get("username") || undefined,
           name: [
             url.searchParams.get("first_name"),
             url.searchParams.get("last_name"),
@@ -372,11 +382,23 @@ export class ScrollockState {
       const input = await requestBody(request);
       if (!SITES.has(input.site))
         return json(400, { error: "invalid site" }, headers);
+      if (
+        !Number.isInteger(input.minutes) ||
+        input.minutes < 1 ||
+        input.minutes > 60
+      )
+        return json(400, { error: "invalid minutes" }, headers);
+      if (typeof input.reason !== "string")
+        return json(400, { error: "invalid reason" }, headers);
+      const reason = input.reason.trim();
+      if (!reason || reason.length > 280)
+        return json(400, { error: "invalid reason" }, headers);
       const activeKey = `active:${session.user.id}:${input.site}`;
       const activeId = await this.storage.get(activeKey);
       const existing =
         activeId && (await this.storage.get(`lease:${activeId}`));
-      if (existing && !existing.ended && existing.expiresAt > this.now())
+      if (existing && !existing.ended && existing.expiresAt > this.now()) {
+        delete existing.paths;
         return json(
           200,
           {
@@ -386,6 +408,7 @@ export class ScrollockState {
           },
           headers,
         );
+      }
       if (!config.mock) {
         const member = await this.telegram("getChatMember", {
           chat_id: this.env.TELEGRAM_GROUP_ID,
@@ -399,14 +422,14 @@ export class ScrollockState {
         site: input.site,
         userId: session.user.id,
         expiresAt: 0,
-        paths: [],
         ended: false,
       };
       await this.report(
-        `${session.user.name} (${session.user.id}) started a 5-minute ${lease.site} unlock. Feed access ends automatically; activity categories follow.`,
+        session.user,
+        `requested a ${input.minutes}-minute ${lease.site} unlock: ${reason}`,
         config,
       );
-      lease.expiresAt = this.now() + 300_000;
+      lease.expiresAt = this.now() + input.minutes * 60_000;
       await this.storage.put({
         [`lease:${lease.id}`]: lease,
         [activeKey]: lease.id,
@@ -418,29 +441,8 @@ export class ScrollockState {
       );
     }
 
-    if (request.method === "POST" && url.pathname === "/api/activity") {
-      const input = await requestBody(request);
-      const key = `lease:${input.unlockId}`;
-      const lease = await this.storage.get(key);
-      if (
-        !lease ||
-        lease.userId !== session.user.id ||
-        lease.ended ||
-        lease.expiresAt <= this.now()
-      )
-        return json(410, { error: "lease expired" }, headers);
-      if (!PATHS.has(input.path))
-        return json(400, { error: "invalid path" }, headers);
-      if (!lease.paths.includes(input.path)) {
-        await this.report(
-          `${session.user.name} activity on ${lease.site}: ${input.path}`,
-          config,
-        );
-        lease.paths.push(input.path);
-        await this.storage.put(key, lease);
-      }
+    if (request.method === "POST" && url.pathname === "/api/activity")
       return json(200, { ok: true }, headers);
-    }
 
     if (request.method === "POST" && url.pathname === "/api/lock") {
       const input = await requestBody(request);
@@ -448,9 +450,9 @@ export class ScrollockState {
       const lease = await this.storage.get(key);
       if (!lease || lease.userId !== session.user.id || lease.ended)
         return json(404, { error: "lease not found" }, headers);
+      delete lease.paths;
       lease.ended = true;
       await this.storage.put(key, lease);
-      await this.report(`${session.user.name} locked ${lease.site}`, config);
       return json(200, { ok: true }, headers);
     }
 

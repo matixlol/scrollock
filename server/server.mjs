@@ -120,8 +120,8 @@ export async function createServer(options = {}) {
   const cfg = options.config || config(options.env);
   const now = options.now || Date.now;
   const pairMs = options.pairDuration ?? 600_000,
-    sessionMs = options.sessionDuration ?? 604_800_000,
-    leaseMs = options.leaseDuration ?? 300_000;
+    sessionMs = options.sessionDuration ?? 604_800_000;
+  const leaseDurationOverride = options.leaseDuration;
   const store = options.store || new Store(cfg.storePath);
   await store.ready;
   const pairs = new Map(),
@@ -156,11 +156,25 @@ export async function createServer(options = {}) {
       return result.result;
     },
   };
-  const report = async (text) => {
+  const report = async (user, message) => {
+    const label = user.username ? `@${user.username}` : user.name;
+    const text = `${label} ${message}`;
     if (cfg.mock) {
       if (options.mockFailure?.()) throw new Error("mock failure");
       messages.push(text);
-    } else await telegram.call("sendMessage", { chat_id: cfg.groupId, text });
+    } else
+      await telegram.call("sendMessage", {
+        chat_id: cfg.groupId,
+        text,
+        entities: [
+          {
+            type: "text_link",
+            offset: 0,
+            length: label.length,
+            url: `tg://user?id=${user.id}`,
+          },
+        ],
+      });
   };
   const cleanup = () => {
     const t = now();
@@ -274,7 +288,7 @@ export async function createServer(options = {}) {
         : `<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${esc(cfg.botUsername)}" data-size="large" data-auth-url="${esc(cfg.origin)}/api/telegram-auth?pair=${encodeURIComponent(pairId)}"></script>`;
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end(
-        `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Connect Telegram</title><style>body{background:Canvas;color:CanvasText;font:16px/1.5 system-ui;max-width:420px;margin:32px auto;padding:16px}h1{font-size:20px}button{background:ButtonFace;color:ButtonText;min-height:44px;padding:8px 12px;border:1px solid GrayText;border-radius:6px;cursor:pointer;font:inherit}</style><h1>Connect Telegram</h1><p>Unblock feeds for 5 minutes. Your group receives your name, site and route categories. No messages, searches or page contents.</p>${cfg.mock ? "<p><strong>LOCAL TEST · Mock Telegram</strong></p>" : ""}${html}<p>Group membership is required. Return to the extension after authorizing.</p></html>`,
+        `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Connect Telegram</title><style>body{background:Canvas;color:CanvasText;font:16px/1.5 system-ui;max-width:420px;margin:32px auto;padding:16px}h1{font-size:20px}button{background:ButtonFace;color:ButtonText;min-height:44px;padding:8px 12px;border:1px solid GrayText;border-radius:6px;cursor:pointer;font:inherit}</style><h1>Connect Telegram</h1><p>Choose how long to unblock a feed and give a reason. Your group receives only your name, site, selected duration, and reason. Browsing activity is not reported.</p>${cfg.mock ? "<p><strong>LOCAL TEST · Mock Telegram</strong></p>" : ""}${html}<p>Group membership is required. Return to the extension after authorizing.</p></html>`,
       );
     }
     if (req.method === "GET" && url.pathname === "/api/telegram-auth") {
@@ -334,6 +348,7 @@ export async function createServer(options = {}) {
         await store.save();
         user = {
           id: Number(url.searchParams.get("id")),
+          username: url.searchParams.get("username") || undefined,
           name: [
             url.searchParams.get("first_name"),
             url.searchParams.get("last_name"),
@@ -363,6 +378,17 @@ export async function createServer(options = {}) {
         const input = await body(req);
         if (!["x", "instagram", "youtube"].includes(input.site))
           return json(res, 400, { error: "invalid site" }, cors);
+        if (
+          !Number.isInteger(input.minutes) ||
+          input.minutes < 1 ||
+          input.minutes > 60
+        )
+          return json(res, 400, { error: "invalid minutes" }, cors);
+        if (typeof input.reason !== "string")
+          return json(res, 400, { error: "invalid reason" }, cors);
+        const reason = input.reason.trim();
+        if (!reason || reason.length > 280)
+          return json(res, 400, { error: "invalid reason" }, cors);
         const existing = Object.values(store.data.leases).find(
           (l) =>
             l.userId === session.user.id &&
@@ -370,7 +396,8 @@ export async function createServer(options = {}) {
             !l.ended &&
             l.expiresAt > now(),
         );
-        if (existing)
+        if (existing) {
+          delete existing.paths;
           return json(
             res,
             200,
@@ -381,12 +408,12 @@ export async function createServer(options = {}) {
             },
             cors,
           );
+        }
         const lease = {
           id: id(18),
           site: input.site,
           userId: session.user.id,
-          expiresAt: now() + leaseMs,
-          paths: [],
+          expiresAt: 0,
           ended: false,
         };
         if (!cfg.mock) {
@@ -401,9 +428,11 @@ export async function createServer(options = {}) {
             return json(res, 403, { error: "group membership required" }, cors);
         }
         await report(
-          `${session.user.name} (${session.user.id}) started a 5-minute ${lease.site} unlock. Feed access ends automatically; activity categories follow.`,
+          session.user,
+          `requested a ${input.minutes}-minute ${lease.site} unlock: ${reason}`,
         );
-        lease.expiresAt = now() + leaseMs;
+        lease.expiresAt =
+          now() + (leaseDurationOverride ?? input.minutes * 60_000);
         store.data.leases[lease.id] = lease;
         await store.save();
         return json(
@@ -414,28 +443,6 @@ export async function createServer(options = {}) {
         );
       }
       if (req.method === "POST" && url.pathname === "/api/activity") {
-        const input = await body(req),
-          lease = store.data.leases[input.unlockId];
-        if (
-          !lease ||
-          lease.userId !== session.user.id ||
-          lease.ended ||
-          lease.expiresAt <= now()
-        )
-          return json(res, 410, { error: "lease expired" }, cors);
-        if (
-          !["/feed", "/messages", "/watch", "/search", "/other"].includes(
-            input.path,
-          )
-        )
-          return json(res, 400, { error: "invalid path" }, cors);
-        if (!lease.paths.includes(input.path)) {
-          await report(
-            `${session.user.name} activity on ${lease.site}: ${input.path}`,
-          );
-          lease.paths.push(input.path);
-          await store.save();
-        }
         return json(res, 200, { ok: true }, cors);
       }
       if (req.method === "POST" && url.pathname === "/api/lock") {
@@ -443,9 +450,9 @@ export async function createServer(options = {}) {
           lease = store.data.leases[input.unlockId];
         if (!lease || lease.userId !== session.user.id || lease.ended)
           return json(res, 404, { error: "lease not found" }, cors);
+        delete lease.paths;
         lease.ended = true;
         await store.save();
-        await report(`${session.user.name} locked ${lease.site}`);
         return json(res, 200, { ok: true }, cors);
       }
       return json(res, 404, { error: "not found" }, cors);

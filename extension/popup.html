@@ -17,10 +17,40 @@
         <button id="connect">Connect</button>
       </section>
       <section id="sites" aria-label="Feed controls"></section>
+      <form id="unlock-form" hidden>
+        <strong id="unlock-title">Unblock feed</strong>
+        <label
+          >Minutes
+          <input
+            id="minutes"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            max="60"
+            step="1"
+            value="5"
+            required
+        /></label>
+        <label
+          >Why are you unblocking?
+          <textarea
+            id="reason"
+            rows="2"
+            maxlength="280"
+            placeholder="A brief reason"
+            required
+          ></textarea>
+        </label>
+        <div class="actions">
+          <button type="button" id="cancel">Cancel</button
+          ><button type="submit">Unblock</button>
+        </div>
+      </form>
       <p class="disclosure">
-        Unblock for 5 minutes. Your Telegram group receives your name, site and
-        route categories. No messages, searches or page contents.
+        Your Telegram group receives the site, duration and reason with your
+        mention. No browsing activity is collected or reported.
       </p>
+      <p id="native-status" class="disclosure" hidden></p>
       <p id="status" role="status" aria-live="polite"></p>
     </main>
     <script src="popup.js"></script>
