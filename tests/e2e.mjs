@@ -38,11 +38,34 @@ async function eventually(check, label, timeout = 20000) {
   }
   throw new Error("Timed out: " + label);
 }
+async function checkTouchLayout(popup, state) {
+  for (const width of [320, 390, 430]) {
+    await popup.setViewportSize({ width, height: 430 });
+    assert.equal(
+      await popup.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `${state}: no horizontal overflow at ${width}px`,
+    );
+    for (const button of await popup.locator("button").all()) {
+      const box = await button.boundingBox();
+      assert.ok(box.height >= 44, "touch target at least 44px high");
+      assert.ok(box.x >= 0 && box.x + box.width <= width, "button fits sheet");
+    }
+    await popup.screenshot({
+      path: join(artifacts, `scrollock-${state}-${width}.png`),
+      fullPage: true,
+    });
+  }
+  await popup.setViewportSize({ width: 390, height: 740 });
+}
 try {
   const extension = resolve("dist/chrome");
   context = await chromium.launchPersistentContext(join(temp, "browser"), {
     channel: "chromium",
     headless: true,
+    hasTouch: true,
     args: [
       `--disable-extensions-except=${extension}`,
       `--load-extension=${extension}`,
@@ -69,6 +92,7 @@ try {
         .then((n) => n === 3),
     "popup ready",
   );
+  await checkTouchLayout(popup, "disconnected");
   await popup
     .locator("body")
     .screenshot({ path: join(artifacts, "scrollock-locked.png") });
@@ -85,11 +109,21 @@ try {
   // Chrome itself applies manifest matching and injects isolated content scripts.
   await context.route(
     /^https:\/\/(www\.|m\.)?(x\.com|instagram\.com|youtube\.com)\//,
-    (route) =>
-      route.fulfill({
+    (route) => {
+      const host = new URL(route.request().url()).hostname;
+      const feed = "<h1>Fixture feed</h1><p>A stream of posts</p>";
+      const content = host.includes("x.com")
+        ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main>`
+        : host.includes("instagram")
+          ? `<main><div><article id="feed">${feed}</article></div></main>`
+          : host === "www.youtube.com"
+            ? `<header><input aria-label="Search" /></header><ytd-browse id="feed">${feed}</ytd-browse>`
+            : `<ytm-browse><header><input aria-label="Search" /></header><div class="rich-grid-renderer-contents" id="feed">${feed}</div></ytm-browse>`;
+      return route.fulfill({
         contentType: "text/html",
-        body: '<!doctype html><html><head><title>Social-site fixture</title></head><body><main id="feed"><h1>Fixture feed</h1><p>A stream of posts</p></main><ytd-watch-next-secondary-results-renderer>Recommended videos</ytd-watch-next-secondary-results-renderer></body></html>',
-      }),
+        body: `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Social-site fixture</title><style>body{margin:0;font:16px system-ui}nav,header{padding:16px}nav{display:flex;gap:24px}a{color:#203a30}</style></head><body><div id="app"><nav><a href="/messages">Messages</a><a href="/profile">Profile</a><button onclick="this.textContent='Clicked'">Compose</button></nav>${content}<ytd-watch-next-secondary-results-renderer>Recommended videos</ytd-watch-next-secondary-results-renderer></div></body></html>`,
+      });
+    },
   );
   const pages = {};
   for (const [site, url] of Object.entries({
@@ -105,10 +139,56 @@ try {
       site + " blocked",
     );
     assert.equal(await page.locator("#feed").isVisible(), false);
+    await page.getByRole("button", { name: "Compose" }).click();
+    assert.equal(await page.getByText("Clicked", { exact: true }).count(), 1);
+    if (site !== "instagram") {
+      await page.getByRole("textbox", { name: "Search" }).fill("a friend");
+      assert.equal(await page.getByRole("textbox").inputValue(), "a friend");
+    }
+    await page.getByRole("link", { name: "Messages" }).click();
+    await eventually(
+      () => page.locator("#feed").isVisible(),
+      "messages usable",
+    );
+    assert.equal(await page.locator("#scrollock-gate").count(), 0);
+    await page.goto(url);
+    await eventually(
+      async () => !(await page.locator("#feed").isVisible()),
+      "feed hidden again",
+    );
+    // Site re-renders must not resurrect the feed or accumulate notices.
+    await page.locator("#feed").evaluate((feed) => {
+      feed.replaceWith(feed.cloneNode(true));
+      document.querySelector("#scrollock-gate").remove();
+    });
+    await eventually(
+      () => page.locator("#scrollock-gate").count(),
+      "notice restored",
+    );
+    assert.equal(await page.locator("#feed").isVisible(), false);
   }
   await pages.x.screenshot({
     path: join(artifacts, "scrollock-feed-paused.png"),
   });
+  const desktop = await context.newPage();
+  for (const path of ["/", "/feed/subscriptions", "/feed/history"]) {
+    await desktop.goto("https://www.youtube.com" + path);
+    await eventually(
+      () => desktop.locator("#scrollock-gate").isVisible(),
+      path,
+    );
+    assert.equal(await desktop.locator("#feed").isVisible(), false);
+    await desktop.getByRole("textbox", { name: "Search" }).fill("music");
+  }
+  await desktop.evaluate(() =>
+    history.pushState({}, "", "/results?search_query=music"),
+  );
+  await eventually(
+    () => desktop.locator("#feed").isVisible(),
+    "desktop search accessible",
+  );
+  assert.equal(await desktop.locator("#scrollock-gate").count(), 0);
+  await desktop.close();
   const loginPromise = context.waitForEvent("page");
   await popup.locator("#connect").click();
   const login = await loginPromise;
@@ -124,6 +204,7 @@ try {
         .then((t) => t.includes("Fixture User")),
     "Telegram pairing",
   );
+  await checkTouchLayout(popup, "connected");
 
   await popup.locator("#x button").click();
   await eventually(
@@ -200,6 +281,16 @@ try {
   await eventually(
     () => pages.instagram.locator("html[data-scrollock-blocked]").count(),
     "SPA relock on reels",
+  );
+  await eventually(
+    () => pages.instagram.locator("#scrollock-gate").isVisible(),
+    "Reels notice is outside hidden content",
+  );
+  assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
+  await pages.instagram.getByRole("link", { name: "Profile" }).click();
+  await eventually(
+    () => pages.instagram.locator("#feed").isVisible(),
+    "profile reachable from Reels",
   );
 
   reportingFails = true;

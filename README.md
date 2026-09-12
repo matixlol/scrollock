@@ -12,7 +12,7 @@ Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instag
 - Direct messages, profiles, normal post links, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
 - A break applies to that site across tabs in the same browser. Reloading a page or closing the popup does not reset the deadline. Repeated unlock requests reuse the active deadline; another break after expiry sends another report.
 - A Telegram start report must succeed before an unlock is granted. A detected activity-report failure removes local access. Lock now takes effect locally even if its notification fails.
-- Route changes are detected on single-page apps as well as full navigations. Route-level blocking does not depend on fragile feed selectors.
+- Route changes are detected on single-page apps as well as full navigations. Only feed containers are hidden; the site's navigation and search controls remain usable. A pause notice sits inside the feed area, never over the whole page. Feed selectors may need updates when sites change their markup; unrecognized layouts are not replaced with a whole-page blocker.
 
 **This is cooperative accountability, not tamper-proof parental control.** Anyone can disable/uninstall the extension, revoke website permission, use another browser, or change its code. It cannot observe native X/Instagram/YouTube apps, clicks, likes, watched time, or browser activity outside the permitted sites. Hiding a page does not prevent that site's network requests or necessarily pause already-playing media. Website changes can require updates to supplemental recommendation selectors.
 
@@ -122,6 +122,8 @@ The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacke
 
 **Verification boundary:** the Safari resources and native Xcode project can be generated on macOS, but signing requires an Apple account in Xcode and Safari behavior must be checked on a real iPhone before TestFlight distribution. Playwright Chromium is not an iOS Safari extension runtime.
 
+For local simulator checks, build the `Scrollock` scheme with `-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`, install the resulting app with `xcrun simctl install booted`, and enable it in Safari's **Manage Extensions** menu. Grant website access before testing. Check the popup in Safari's half-height sheet: connection and all three feed controls should fit its width, buttons should be touch-sized, and the reporting explanation should be reachable by scrolling. Verify that YouTube search and bottom navigation still respond with the feed paused, and that unlock/expiry restores and hides the feed without replacing the page shell.
+
 ## Tests
 
 ```sh
@@ -153,3 +155,5 @@ Coverage includes signed login validation/replay, group membership rejection, pr
 - `tests/`: rule tests and actual-extension end-to-end test.
 
 Original implementation inspired by the user-mentioned **Blockit** and **News Feed Eradicator/news-feed disablers**. No source code or assets from those products were copied or cloned. Telegram and social-platform names belong to their respective owners; this project is not affiliated with them.
+
+Feed-selector references: [News Feed Eradicator](https://github.com/jordwest/news-feed-eradicator) for X and Instagram's content containers, and [Remove YouTube Suggestions](https://github.com/lawrencehook/remove-youtube-suggestions) for mobile YouTube feed and recommendation containers.

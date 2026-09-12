@@ -1,9 +1,15 @@
 * {
   box-sizing: border-box;
 }
+html {
+  width: 390px;
+  max-width: 100%;
+  background: #f5f3ed;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   margin: 0;
-  width: 390px;
+  width: 100%;
   background: #f5f3ed;
   color: #203a30;
   font:
@@ -63,6 +69,7 @@ h1 em {
 }
 .connection {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   padding: 15px 12px;
@@ -74,17 +81,22 @@ h1 em {
   font-size: 23px;
 }
 .connection strong {
-  font-size: 11px;
+  font-size: 13px;
 }
 .connection p {
-  font-size: 9px;
+  font-size: 12px;
   margin: 2px 0;
   color: #697867;
 }
 .connection button {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 12px;
   padding: 7px 10px;
+}
+.connection > div {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .section-title {
   display: flex;
@@ -102,12 +114,13 @@ h1 em {
 }
 .site {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   padding: 17px 0;
   border-bottom: 1px solid #dddfd4;
 }
 .icon {
+  flex-shrink: 0;
   width: 35px;
   height: 35px;
   border: 1px solid #d9ddd1;
@@ -122,21 +135,23 @@ h1 em {
   font-weight: 600;
 }
 .site p {
-  font-size: 10px;
+  font-size: 12px;
   color: #788471;
   margin: 2px 0 0;
 }
 .site button {
   margin-left: auto;
+  flex-shrink: 0;
 }
 button {
+  min-height: 44px;
   border: 1px solid #cdd6c4;
   background: transparent;
   border-radius: 6px;
   padding: 8px 11px;
   color: #36543a;
   cursor: pointer;
-  font: 500 10px system-ui;
+  font: 500 12px system-ui;
 }
 button:hover {
   background: #dfe7d5;
@@ -166,7 +181,7 @@ aside > span {
   font-size: 19px;
 }
 aside p {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   margin: 0;
 }
@@ -201,11 +216,38 @@ footer > span:last-child {
   background: #7d9568;
 }
 @media (max-width: 389px) {
-  body {
-    width: 100vw;
+  main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+@media (pointer: coarse) {
+  html {
+    width: 100%;
+  }
+  header {
+    height: 48px;
+    padding: 0 20px;
   }
   main {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-top: 12px;
+  }
+  .eyebrow,
+  h1,
+  .intro,
+  footer {
+    display: none;
+  }
+  .connection {
+    padding: 10px;
+  }
+  .section-title {
+    margin-top: 14px;
+  }
+  .site {
+    padding: 8px 0;
+  }
+  aside {
+    padding-top: 12px;
   }
 }
