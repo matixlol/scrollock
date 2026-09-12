@@ -53,7 +53,7 @@ Mock mode refuses `NODE_ENV=production` and non-loopback binding. It is for test
 2. Add the bot to your friends' group and make it an administrator, so `getChatMember` reliably verifies other users. Ensure it can send messages.
 3. Set the one fixed `TELEGRAM_GROUP_ID` on the server. Everyone uses this destination; neither popup nor API accepts a group override. The real ID and bot credentials are intentionally not invented or committed.
 4. Deploy the Cloudflare Worker. Use `/setdomain` in BotFather to register `scrollock.poronga.com.ar` for the [Telegram login widget](https://core.telegram.org/widgets/login-legacy).
-5. Copy `.env.example` to `.env` and populate it privately. Use the exact extension origins in `ALLOWED_ORIGINS`; never use `*`. For Safari, inspect `browser.runtime.getURL('')` in the extension's background inspector and remove the trailing slash. Safari origins may differ by installation/build, so allowlist each friend’s actual origin.
+5. Copy `.env.example` to `.env` and populate it privately. Use exact Chrome/Firefox extension origins in `ALLOWED_ORIGINS`; never use `*`. Set `ALLOW_SAFARI_EXTENSION_ORIGINS=1` to accept Safari's installation-specific `safari-web-extension://UUID` origins. This allows Safari extensions to reach the API, not ordinary websites, and does not replace Telegram login, group membership or bearer-session checks. To restrict Safari to individual installations instead, omit this flag and add their exact origins to `ALLOWED_ORIGINS`.
 6. Start the server and build the extension for that same HTTPS origin:
 
    ```sh
@@ -81,7 +81,7 @@ Pushes to `main` run the complete test suite, build downloadable Chrome and Safa
 
 Telegram credentials remain Cloudflare Worker secrets and are not copied to GitHub. Worker deployments preserve them.
 
-The production backend is a Worker at `scrollock.poronga.com.ar`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Add actual Safari origins to `ALLOWED_ORIGINS` after packaging.
+The production backend is a Worker at `scrollock.poronga.com.ar`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Production enables `ALLOW_SAFARI_EXTENSION_ORIGINS` so each friend's Safari installation can connect without manually registering its random UUID origin.
 
 `GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions expire after seven days. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
 

@@ -56,6 +56,75 @@ function fixture(storage = new MemoryStorage()) {
   };
 }
 
+test("Safari installation origins can pair when enabled, without bypassing authentication", async () => {
+  const value = fixture();
+  const safari = "safari-web-extension://508d8d32-17ee-45b2-9c6b-6077d09412f9";
+  assert.equal(
+    (
+      await value.request("/api/pair", {
+        method: "OPTIONS",
+        headers: { origin: safari },
+      })
+    ).status,
+    403,
+  );
+  value.state.env.ALLOW_SAFARI_EXTENSION_ORIGINS = "1";
+  for (const origin of [
+    safari,
+    "safari-web-extension://C7E24139-A05F-42B8-91DA-5B73DE28F046",
+    "chrome-extension://abc",
+  ]) {
+    const preflight = await value.request("/api/pair", {
+      method: "OPTIONS",
+      headers: { origin },
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), origin);
+    assert.equal(preflight.headers.get("vary"), "Origin");
+    const response = await value.request("/api/pair", {
+      method: "POST",
+      headers: { origin },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    const pair = await response.json();
+    assert.ok(pair.loginUrl.includes(pair.id));
+    assert.equal(
+      (
+        await value.request(`/api/pair/${pair.id}`, {
+          headers: { origin, authorization: "Bearer wrong-secret" },
+        })
+      ).status,
+      401,
+    );
+    const unlock = await value.request("/api/unlock", {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: '{"site":"x"}',
+    });
+    assert.equal(unlock.status, 401);
+    assert.equal(unlock.headers.get("access-control-allow-origin"), origin);
+  }
+  for (const origin of [
+    "null",
+    "https://evil.example",
+    "chrome-extension://other",
+    "safari-web-extension://anything",
+    `${safari}.evil.example`,
+    `${safari}/`,
+    `${safari}:443`,
+    `${safari}@evil.example`,
+    safari.replace("safari-web-extension", "https"),
+  ]) {
+    const response = await value.request("/api/pair", {
+      method: "POST",
+      headers: { origin },
+    });
+    assert.equal(response.status, 403, origin);
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+  }
+});
+
 test("Worker pairing and durable five-minute lease survive object restart", async () => {
   const first = fixture();
   const token = await first.pair();

@@ -290,6 +290,53 @@ test("concurrent unlocks share one durable lease and report", async (t) => {
   assert.deepEqual(await unlock(), leases[0]);
 });
 
+test("Node backend supports opt-in Safari origins and still requires a session", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const origin = "safari-web-extension://508d8d32-17ee-45b2-9c6b-6077d09412f9";
+  const preflight = () =>
+    f.request("/api/pair", { method: "OPTIONS", headers: { origin } });
+  assert.equal((await preflight()).status, 403);
+  f.cfg.allowSafariExtensionOrigins = config({
+    MOCK_TELEGRAM: "1",
+    ALLOW_SAFARI_EXTENSION_ORIGINS: "1",
+  }).allowSafariExtensionOrigins;
+  const response = await preflight();
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get("access-control-allow-origin"), origin);
+  assert.equal(response.headers.get("vary"), "Origin");
+  assert.equal(
+    (await f.request("/api/pair", { method: "POST", headers: { origin } }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (
+      await f.request("/api/unlock", {
+        method: "POST",
+        headers: { origin, "content-type": "application/json" },
+        body: '{"site":"x"}',
+      })
+    ).status,
+    401,
+  );
+  for (const blocked of [
+    "null",
+    "https://evil.example",
+    "safari-web-extension://anything",
+    `${origin}.evil.example`,
+    `${origin}/`,
+    `${origin}:443`,
+  ]) {
+    const response = await f.request("/api/pair", {
+      method: "POST",
+      headers: { origin: blocked },
+    });
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+  }
+});
+
 test("CORS, login binding, pairing/session expiry, JSON validation, and production mock guard", async (t) => {
   const f = await fixture();
   t.after(f.close);

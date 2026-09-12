@@ -134,6 +134,8 @@ export class ScrollockState {
     return {
       mock,
       origins,
+      allowSafariExtensionOrigins:
+        this.env.ALLOW_SAFARI_EXTENSION_ORIGINS === "1",
       origin: this.env.PUBLIC_ORIGIN || "http://localhost:8787",
     };
   }
@@ -180,7 +182,14 @@ export class ScrollockState {
     const origin = request.headers.get("origin");
     const cors = {};
     if (origin) {
-      if (!config.origins.includes(origin))
+      // Safari assigns extension origins per installation. This is CORS, not
+      // authentication: Telegram membership and bearer sessions are still required.
+      const safariOrigin =
+        config.allowSafariExtensionOrigins &&
+        /^safari-web-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          origin,
+        );
+      if (!config.origins.includes(origin) && !safariOrigin)
         return json(403, { error: "origin not allowed" }, secureHeaders);
       cors["Access-Control-Allow-Origin"] = origin;
       cors.Vary = "Origin";

@@ -66,6 +66,7 @@ export function config(env = process.env) {
     botUsername: env.TELEGRAM_BOT_USERNAME,
     groupId: env.TELEGRAM_GROUP_ID,
     origins,
+    allowSafariExtensionOrigins: env.ALLOW_SAFARI_EXTENSION_ORIGINS === "1",
     origin: env.PUBLIC_ORIGIN || `http://localhost:${env.PORT || 8787}`,
     storePath: resolve(env.STORE_PATH || "server/data/store.json"),
   };
@@ -193,7 +194,12 @@ export async function createServer(options = {}) {
     const origin = req.headers.origin;
     let cors = {};
     if (origin) {
-      if (!cfg.origins.includes(origin))
+      const safariOrigin =
+        cfg.allowSafariExtensionOrigins &&
+        /^safari-web-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          origin,
+        );
+      if (!cfg.origins.includes(origin) && !safariOrigin)
         return json(res, 403, { error: "origin not allowed" });
       cors = { "access-control-allow-origin": origin, vary: "Origin" };
       for (const [key, value] of Object.entries(cors))
