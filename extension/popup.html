@@ -3,47 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
-    <title>Scrollock</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Feed controls</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <a class="brand" href="#">↟ <span>scrollock</span></a
-      ><span class="badge">WITH FRIENDS</span>
-    </header>
     <main>
-      <div class="eyebrow">MAKE ROOM FOR REAL LIFE</div>
-      <h1>Less scrolling.<br />More <em>being.</em></h1>
-      <p class="intro">
-        Your feeds can wait. A little accountability<br />goes a long way.
-      </p>
       <section class="connection" aria-label="Telegram connection">
-        <span class="connection-icon">↗</span>
         <div>
-          <strong id="identity">Better together</strong>
-          <p id="connection-copy">Connect to your friends on Telegram.</p>
+          <strong id="identity">Telegram not connected</strong>
+          <p id="connection-copy">Connect to unblock feeds.</p>
         </div>
         <button id="connect">Connect</button>
       </section>
-      <div class="section-title">
-        <h2>YOUR FEEDS</h2>
-        <span id="summary">All quiet</span>
-      </div>
       <section id="sites" aria-label="Feed controls"></section>
-      <aside>
-        <span>↗</span>
-        <p>
-          <strong>A break, not a rabbit hole.</strong><br />Unlock for 5
-          minutes. Your group gets your name, the site and route categories you
-          visit. No messages, searches or page contents.
-        </p>
-      </aside>
+      <p class="disclosure">
+        Unblock for 5 minutes. Your Telegram group receives your name, site and
+        route categories. No messages, searches or page contents.
+      </p>
       <p id="status" role="status" aria-live="polite"></p>
     </main>
-    <footer>
-      <span class="dot"></span> LESS FEED. MORE FREEDOM.<span>↟</span>
-    </footer>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -16,4 +16,21 @@ xcrun safari-web-extension-packager "$ROOT/dist/safari" \
   --ios-only --swift --no-open
 /usr/libexec/PlistBuddy -c 'Add :ITSAppUsesNonExemptEncryption bool false' \
   "$ROOT/safari/Scrollock/Scrollock/Info.plist"
+# Keep the containing app functional and unbranded after every regeneration.
+cat > "$ROOT/safari/Scrollock/Scrollock/Resources/Base.lproj/Main.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Extension settings</title>
+  <link rel="stylesheet" href="../Style.css">
+</head>
+<body>
+  <p>Enable the extension in Settings → Apps → Safari → Extensions.</p>
+</body>
+</html>
+HTML
 echo 'Open the generated Xcode project, select your signing team on both targets, then build and run on your iPhone.'

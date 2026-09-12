@@ -1,12 +1,9 @@
 /* global chrome, browser */
 const api = globalThis.browser || chrome;
 const names = {
-  x: ["X", "X / Twitter"],
-  instagram: [
-    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
-    "Instagram",
-  ],
-  youtube: ["▷", "YouTube"],
+  x: "X / Twitter",
+  instagram: "Instagram",
+  youtube: "YouTube",
 };
 let state = {},
   busy = false;
@@ -19,25 +16,24 @@ async function send(type, site) {
 function render() {
   document.querySelector("#identity").textContent = state.user
     ? `Connected as ${state.user.name}`
-    : "Better together";
+    : "Telegram not connected";
   document.querySelector("#connection-copy").textContent = state.user
-    ? "Your friends are keeping you company."
+    ? ""
     : state.pairing
       ? "Finish login, then return here."
-      : "Connect to your friends on Telegram.";
+      : "Connect to unblock feeds.";
   document.querySelector("#connect").textContent = state.user
     ? "Reconnect"
     : state.pairing
       ? "Check login"
       : "Connect";
-  let active = 0;
-  for (const [site, [icon, name]] of Object.entries(names)) {
+  for (const [site, name] of Object.entries(names)) {
     let row = document.getElementById(site);
     if (!row) {
       row = document.createElement("article");
       row.id = site;
       row.className = "site";
-      row.innerHTML = `<span class="icon" aria-hidden="true">${icon}</span><div><strong>${name}</strong><p></p></div><button></button>`;
+      row.innerHTML = `<div><strong>${name}</strong><p></p></div><button></button>`;
       row
         .querySelector("button")
         .addEventListener("click", () =>
@@ -54,21 +50,17 @@ function render() {
       0,
       Math.ceil(((state.leases?.[site]?.expiresAt || 0) - Date.now()) / 1000),
     );
-    active += !!remaining;
     row.classList.toggle("active", !!remaining);
     row.querySelector("p").textContent = remaining
-      ? `Break · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} left`
+      ? `Unblocked · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} left`
       : "Feed blocked";
     const button = row.querySelector("button");
-    button.textContent = remaining ? "Lock now" : "Unlock 5 min";
+    button.textContent = remaining ? "Block" : "Unblock";
     button.setAttribute(
       "aria-label",
-      `${remaining ? "Lock" : "Unlock"} ${name}${remaining ? "" : " for 5 minutes"}`,
+      `${remaining ? "Block" : "Unblock"} ${name}${remaining ? "" : " for 5 minutes"}`,
     );
   }
-  document.querySelector("#summary").textContent = active
-    ? `${active} on a break`
-    : "All quiet";
   document
     .querySelectorAll("button")
     .forEach((button) => (button.disabled = busy));

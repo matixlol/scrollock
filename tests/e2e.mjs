@@ -60,6 +60,30 @@ async function checkTouchLayout(popup, state) {
   }
   await popup.setViewportSize({ width: 390, height: 740 });
 }
+async function checkAppearance(page, selector, name) {
+  for (const colorScheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme });
+    const background = await page
+      .locator(selector)
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    const red = Number(background.match(/\d+/)[0]);
+    assert.ok(
+      colorScheme === "light" ? red > 200 : red < 60,
+      `${name}: ${colorScheme} background`,
+    );
+    await page.screenshot({
+      path: join(artifacts, `${name}-${colorScheme}.png`),
+      fullPage: true,
+    });
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+}
+async function clickInlineUnblock(page) {
+  // The content script deliberately uses a closed shadow root. Click the visible
+  // right-aligned button with a real pointer event, not a synthetic DOM click.
+  const box = await page.locator("#scrollock-gate").boundingBox();
+  await page.mouse.click(box.x + box.width - 50, box.y + 38);
+}
 try {
   const extension = resolve("dist/chrome");
   context = await chromium.launchPersistentContext(join(temp, "browser"), {
@@ -93,6 +117,8 @@ try {
     "popup ready",
   );
   await checkTouchLayout(popup, "disconnected");
+  assert.equal(await popup.locator("header, nav, footer, img, svg").count(), 0);
+  await checkAppearance(popup, "html", "popup");
   await popup
     .locator("body")
     .screenshot({ path: join(artifacts, "scrollock-locked.png") });
@@ -170,6 +196,9 @@ try {
   await pages.x.screenshot({
     path: join(artifacts, "scrollock-feed-paused.png"),
   });
+  await checkAppearance(pages.x, "#scrollock-gate", "feed");
+  await clickInlineUnblock(pages.x);
+  assert.equal(await pages.x.locator("#feed").isVisible(), false);
   const desktop = await context.newPage();
   for (const path of ["/", "/feed/subscriptions", "/feed/history"]) {
     await desktop.goto("https://www.youtube.com" + path);
@@ -193,6 +222,7 @@ try {
   await popup.locator("#connect").click();
   const login = await loginPromise;
   await login.waitForLoadState();
+  await checkAppearance(login, "body", "login");
   await login.screenshot({ path: join(artifacts, "scrollock-mock-login.png") });
   await login.getByRole("button", { name: "Authorize fixture user" }).click();
   await popup.locator("#connect").click();
@@ -206,13 +236,42 @@ try {
   );
   await checkTouchLayout(popup, "connected");
 
-  await popup.locator("#x button").click();
+  await clickInlineUnblock(pages.x);
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
     "X unlock",
   );
   assert.equal(await pages.x.locator("#feed").isVisible(), true);
   assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
+  await eventually(
+    () =>
+      popup
+        .getByRole("button", { name: "Block X / Twitter", exact: true })
+        .count(),
+    "popup reflects inline unblock",
+  );
+  // A page cannot choose another site or invoke privileged extension actions.
+  await worker.evaluate(async () => {
+    const sender = {
+      url: "https://x.com/home",
+      tab: { url: "https://x.com/home" },
+    };
+    await handle({ type: "unlock", site: "instagram" }, sender);
+  });
+  assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
+  for (const type of ["pair", "poll", "lock"]) {
+    const error = await worker.evaluate(async (type) => {
+      try {
+        await handle(
+          { type, site: "x" },
+          { url: "https://x.com/home", tab: { url: "https://x.com/home" } },
+        );
+      } catch (error) {
+        return error.message;
+      }
+    }, type);
+    assert.equal(error, "Use the extension popup");
+  }
   await popup
     .locator("body")
     .screenshot({ path: join(artifacts, "scrollock-active.png") });
@@ -231,7 +290,16 @@ try {
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
     "unlock survives reload",
   );
-  await popup.locator("#x button").click();
+  await popup
+    .getByRole("button", { name: "Block X / Twitter", exact: true })
+    .click();
+  await eventually(
+    async () =>
+      (
+        await (await fetch(cfg.origin + "/__mock/messages")).json()
+      ).messages.some((message) => message.includes("locked x")),
+    "manual block reported",
+  );
   await pages.x.goto("https://x.com/home");
   await eventually(
     () => pages.x.locator("html[data-scrollock-blocked]").count(),

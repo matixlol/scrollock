@@ -64,7 +64,10 @@ async function handle(message, sender) {
     }
     return {};
   }
-  if (!trusted) throw new Error("Use the extension popup");
+  // Content scripts may unblock only their own site, derived from sender above.
+  // Pairing, polling and manual locks remain restricted to extension pages.
+  if (!trusted && message.type !== "unlock")
+    throw new Error("Use the extension popup");
   if (message.type === "pair") {
     const pair = await request("/api/pair", {});
     await api.storage.local.set({ pair });
@@ -92,7 +95,8 @@ async function handle(message, sender) {
   }
   if (!sites.includes(site)) throw new Error("Choose a supported site");
   if (message.type === "unlock") {
-    if (!current.session) throw new Error("Connect Telegram first.");
+    if (!current.session)
+      throw new Error("Connect Telegram in the extension first.");
     const lease = await request("/api/unlock", { site }, current.session.token);
     current.leases[site] = lease;
     await api.storage.local.set({ leases: current.leases });

@@ -1,7 +1,5 @@
 # Scrollock
 
-A little less feed. A little more life.
-
 Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instagram, and YouTube feeds by default. A Telegram-authenticated friend can unlock **one site for five minutes**, with accountability reports sent to **one fixed Telegram group**.
 
 ## What it does
@@ -44,7 +42,7 @@ npm run build
 
 3. Pin Scrollock. Open its popup and choose **Connect**.
 4. On the explicitly labeled local test page, choose **Authorize fixture user**. Return to the popup and choose **Check login**.
-5. Visit one of the supported sites. Its feed should be paused. Choose **Unlock 5 min** in the popup to reveal that site's feed.
+5. Visit one of the supported sites. Its feed should show **Feed blocked**. Choose **Unblock** on the page or in the popup to reveal that site's feed for five minutes. The extension follows the device's light/dark appearance.
 6. The mock server's `/__mock/messages` endpoint returns the reports. It is accessible only from loopback, never in production.
 
 Mock mode refuses `NODE_ENV=production` and non-loopback binding. It is for testing, not a way to authorize real friends. Do not expose the mock server through a public proxy.

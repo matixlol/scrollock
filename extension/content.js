@@ -50,7 +50,25 @@
       gate = document.createElement("div");
       gate.id = "scrollock-gate";
       const shadow = gate.attachShadow({ mode: "closed" });
-      shadow.innerHTML = `<style>:host{display:block!important;position:relative!important;box-sizing:border-box!important;flex:1 1 100%!important;min-width:0!important;width:100%!important;background:#f5f3ed!important;color:#203a30!important;font:15px/1.6 system-ui!important}main{max-width:480px;margin:auto;padding:28px 24px}small{letter-spacing:2px;font-size:11px}h1{font:normal 36px/1.1 Georgia;margin:20px 0 16px}p{color:#637268}span{display:block;margin-top:24px;padding-top:16px;border-top:1px solid #d6dbd1;font-size:13px}.mark{font:36px Georgia;color:#51775d}</style><main><div class="mark">↟</div><small>SCROLLOCK / FEED PAUSED</small><h1>A little less feed.<br>A little more life.</h1><p>Your feed is tucked away. Messages, profiles and direct links are still yours to use.</p><span>Want a quick look? Open Scrollock in your browser’s extensions menu for a five-minute break, shared with your Telegram group.</span></main>`;
+      shadow.innerHTML = `<style>:host{color-scheme:light dark!important;display:block!important;position:relative!important;box-sizing:border-box!important;flex:1 1 100%!important;min-width:0!important;width:100%!important;background:Canvas!important;color:CanvasText!important;font:14px/1.5 system-ui!important}main{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px}button{min-height:44px;padding:8px 12px;border:1px solid GrayText;border-radius:6px;background:ButtonFace;color:ButtonText;font:inherit;cursor:pointer}button:focus-visible{outline:2px solid Highlight;outline-offset:2px}button:disabled{opacity:.6}p{margin:0;padding:0 16px 16px;font-size:13px}p:empty{display:none}</style><main><span>Feed blocked</span><button title="Unblock for 5 minutes; your Telegram group receives your name, site and route categories.">Unblock</button></main><p role="status" aria-live="polite"></p>`;
+      const button = shadow.querySelector("button");
+      button.addEventListener("click", async (event) => {
+        if (!event.isTrusted || button.disabled) return;
+        button.disabled = true;
+        const status = shadow.querySelector("p");
+        status.textContent = "";
+        try {
+          const result = await api.runtime.sendMessage({ type: "unlock" });
+          if (!result.ok) throw new Error(result.error);
+          const state = await api.runtime.sendMessage({ type: "state" });
+          expiresAt = state.leases?.[site]?.expiresAt || 0;
+          render();
+        } catch (error) {
+          status.textContent = error.message;
+        } finally {
+          button.disabled = false;
+        }
+      });
     }
     if (first && first.previousSibling !== gate) first.before(gate);
     if (!first && gate) {
