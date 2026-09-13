@@ -94,6 +94,18 @@ async function handle(message, sender) {
   if (message.type === "unlock") {
     if (!current.session)
       throw new Error("Connect Telegram in the extension first.");
+    if (
+      !Number.isInteger(message.minutes) ||
+      message.minutes < 1 ||
+      message.minutes > 60
+    )
+      throw new Error("Choose a duration from 1 to 60 minutes.");
+    if (
+      typeof message.reason !== "string" ||
+      !message.reason.trim() ||
+      message.reason.trim().length > 280
+    )
+      throw new Error("Enter a brief reason (up to 280 characters).");
     const lease = await request(
       "/api/unlock",
       { site, minutes: message.minutes, reason: message.reason },
