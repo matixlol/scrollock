@@ -117,14 +117,33 @@ async function inlineControl(page, matcher) {
     (model.border[0] + model.border[2] + model.border[4] + model.border[6]) / 4;
   const y =
     (model.border[1] + model.border[3] + model.border[5] + model.border[7]) / 4;
+  const { object } = await cdp.send("DOM.resolveNode", { nodeId: node.nodeId });
+  const { result } = await cdp.send("Runtime.callFunctionOn", {
+    objectId: object.objectId,
+    functionDeclaration: `function() { return {value:this.value, unblocks:[...this.getRootNode().querySelectorAll('button')].filter(b=>b.textContent==='Unblock' && b.getClientRects().length).length}; }`,
+    returnByValue: true,
+  });
   await cdp.detach();
-  return { x, y };
+  return { x, y, ...result.value };
+}
+async function setMinutes(page, input, minutes) {
+  await input.focus();
+  await page.keyboard.press("Home");
+  for (let value = 5; value < minutes; value += 5)
+    await page.keyboard.press("ArrowRight");
+  assert.equal(await input.inputValue(), String(minutes));
 }
 async function fillInline(page, minutes, reason) {
   const input = await inlineControl(page, (node) => node.nodeName === "INPUT");
+  assert.equal(input.unblocks, 1, "only one visible inline Unblock action");
   await page.mouse.click(input.x, input.y);
-  await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.type(String(minutes));
+  await page.keyboard.press("Home");
+  for (let value = 5; value < minutes; value += 5)
+    await page.keyboard.press("ArrowRight");
+  assert.equal(
+    (await inlineControl(page, (node) => node.nodeName === "INPUT")).value,
+    String(minutes),
+  );
   const textarea = await inlineControl(
     page,
     (node) => node.nodeName === "TEXTAREA",
@@ -132,6 +151,10 @@ async function fillInline(page, minutes, reason) {
   await page.mouse.click(textarea.x, textarea.y);
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type(reason);
+  assert.equal(
+    (await inlineControl(page, (node) => node.nodeName === "TEXTAREA")).value,
+    reason,
+  );
 }
 async function submitInline(page) {
   const submit = await inlineControl(
@@ -151,7 +174,7 @@ async function openPopupForm(popup, site) {
 }
 async function submitPopupForm(popup, site, minutes, reason) {
   await openPopupForm(popup, site);
-  await popup.locator("#minutes").fill(String(minutes));
+  await setMinutes(popup, popup.locator("#minutes"), minutes);
   await popup.locator("#reason").fill(reason);
   await popup.locator('#unlock-form button[type="submit"]').click();
 }
@@ -284,7 +307,33 @@ try {
     });
   }
   await pages.x.emulateMedia({ colorScheme: "light" });
+  await pages.x.evaluate(() => {
+    window.shortcuts = [];
+    for (const target of [window, document]) {
+      for (const capture of [true, false]) {
+        for (const type of ["keydown", "keypress", "keyup"]) {
+          target.addEventListener(
+            type,
+            (event) => {
+              if (event.key === "n") {
+                window.shortcuts.push(type);
+                event.preventDefault();
+              }
+            },
+            capture,
+          );
+        }
+      }
+    }
+  });
   await fillInline(pages.x, 5, "not authenticated yet");
+  assert.deepEqual(await pages.x.evaluate(() => window.shortcuts), []);
+  await pages.x.getByRole("button", { name: "Compose" }).click();
+  await pages.x.keyboard.press("n");
+  assert.ok(
+    (await pages.x.evaluate(() => window.shortcuts)).length > 0,
+    "site shortcuts still work outside the gate",
+  );
   await submitInline(pages.x);
   assert.equal(await pages.x.locator("#feed").isVisible(), false);
   const desktop = await context.newPage();
@@ -330,11 +379,47 @@ try {
     await (await fetch(cfg.origin + "/__mock/messages")).json()
   ).messages.length;
   await openPopupForm(popup, "x");
-  await popup.locator("#minutes").fill("17");
+  assert.equal(await popup.locator("#x button").isVisible(), false);
+  const timer = popup.locator("#minutes");
+  await timer.scrollIntoViewIfNeeded();
+  const box = await timer.boundingBox();
+  const y = box.y + box.height / 2;
+  await popup.mouse.move(box.x + 46, y);
+  await popup.mouse.down();
+  assert.equal(await timer.inputValue(), "5");
+  await popup.mouse.move(box.x + box.width + 25, y, { steps: 12 });
+  assert.equal(
+    await timer.inputValue(),
+    "60",
+    "drag right and beyond surface clamps to 60",
+  );
+  await popup.mouse.move(box.x + 46 + (box.width - 92) * 0.25, y, { steps: 8 });
+  assert.equal(
+    await timer.inputValue(),
+    "20",
+    "drag left selects intermediate duration",
+  );
+  await popup.mouse.move(box.x - 25, y, { steps: 8 });
+  assert.equal(
+    await timer.inputValue(),
+    "5",
+    "drag left of surface clamps to 5",
+  );
+  await popup.mouse.up();
+  await setMinutes(popup, timer, 20);
+  const pill = await popup.locator(".scrollock-timer output").boundingBox();
+  await popup.mouse.move(pill.x + pill.width - 5, y);
+  await popup.mouse.down();
+  assert.equal(
+    await timer.inputValue(),
+    "20",
+    "grabbing the pill edge does not jump",
+  );
+  await popup.mouse.up();
   await popup.locator("#reason").fill("Finish release notes exactly");
   await new Promise((ok) => setTimeout(ok, 1200));
   assert.equal(await popup.locator("#unlock-form").isVisible(), true);
-  assert.equal(await popup.locator("#minutes").inputValue(), "17");
+  assert.equal(await popup.locator("#minutes").inputValue(), "20");
   assert.equal(
     await popup.locator("#reason").inputValue(),
     "Finish release notes exactly",
@@ -352,19 +437,8 @@ try {
       .length,
     reportsBeforeValidation,
   );
-  await openPopupForm(popup, "x");
-  await popup.locator("#minutes").fill("0");
-  await popup.locator("#reason").fill("Invalid duration");
-  await popup.locator('#unlock-form button[type="submit"]').click();
-  assert.equal(await popup.locator("#unlock-form").isVisible(), true);
-  assert.equal(await pages.x.locator("#feed").isVisible(), false);
-  assert.equal(
-    (await (await fetch(cfg.origin + "/__mock/messages")).json()).messages
-      .length,
-    reportsBeforeValidation,
-  );
-  await popup.locator("#cancel").click();
-  await fillInline(pages.x, 17, "Finish release notes exactly");
+  assert.equal(await popup.locator("#x button").isVisible(), true);
+  await fillInline(pages.x, 20, "Finish release notes exactly");
   await submitInline(pages.x);
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
@@ -519,7 +593,7 @@ try {
   ).json();
   assert.ok(
     messages.includes(
-      "Fixture User requested a 17-minute x unlock: Finish release notes exactly",
+      "Fixture User requested a 20-minute x unlock: Finish release notes exactly",
     ),
     `exact selected-duration report missing: ${JSON.stringify(messages)}`,
   );

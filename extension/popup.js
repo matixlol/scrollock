@@ -1,4 +1,4 @@
-/* global chrome, browser */
+/* global chrome, browser, ScrollockTimer */
 const api = globalThis.browser || chrome;
 const names = {
   x: "X / Twitter",
@@ -10,6 +10,7 @@ let state = {},
   selectedSite;
 const status = document.querySelector("#status");
 const form = document.querySelector("#unlock-form");
+ScrollockTimer(document.querySelector("#minutes"));
 async function send(type, site, fields = {}) {
   const result = await api.runtime.sendMessage({ type, site, ...fields });
   if (!result.ok) throw new Error(result.error);
@@ -46,8 +47,10 @@ function render() {
         }
         selectedSite = site;
         form.hidden = false;
+        render();
         document.querySelector("#unlock-title").textContent = `Unblock ${name}`;
-        document.querySelector("#reason").focus();
+        form.scrollIntoView({ block: "start" });
+        document.querySelector("#minutes").focus({ preventScroll: true });
       });
       document.querySelector("#sites").append(row);
     }
@@ -60,6 +63,7 @@ function render() {
       ? `Unblocked · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} left`
       : "Feed blocked";
     const button = row.querySelector("button");
+    button.hidden = !remaining && !form.hidden && selectedSite === site;
     button.textContent = remaining ? "Block" : "Unblock";
     button.setAttribute(
       "aria-label",
@@ -96,6 +100,8 @@ document
   );
 document.querySelector("#cancel").addEventListener("click", () => {
   form.hidden = true;
+  render();
+  document.querySelector(`#${selectedSite} button`).focus();
 });
 form.addEventListener("submit", (event) => {
   event.preventDefault();

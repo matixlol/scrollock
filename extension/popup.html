@@ -19,18 +19,7 @@
       <section id="sites" aria-label="Feed controls"></section>
       <form id="unlock-form" hidden>
         <strong id="unlock-title">Unblock feed</strong>
-        <label
-          >Minutes
-          <input
-            id="minutes"
-            type="number"
-            inputmode="numeric"
-            min="1"
-            max="60"
-            step="1"
-            value="5"
-            required
-        /></label>
+        <input id="minutes" aria-label="Unblock duration" value="5" />
         <label
           >Why are you unblocking?
           <textarea
@@ -46,13 +35,10 @@
           ><button type="submit">Unblock</button>
         </div>
       </form>
-      <p class="disclosure">
-        Your Telegram group receives the site, duration and reason with your
-        mention. No browsing activity is collected or reported.
-      </p>
       <p id="native-status" class="disclosure" hidden></p>
       <p id="status" role="status" aria-live="polite"></p>
     </main>
+    <script src="timer.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
