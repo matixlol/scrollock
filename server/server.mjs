@@ -378,6 +378,12 @@ export async function createServer(options = {}) {
         const input = await body(req);
         if (!["x", "instagram", "youtube"].includes(input.site))
           return json(res, 400, { error: "invalid site" }, cors);
+        // Installed pre-1.1 extensions cannot supply these fields. Keep them
+        // usable during the TestFlight rollout without inventing a user reason.
+        if (input.minutes === undefined && input.reason === undefined) {
+          input.minutes = 5;
+          input.reason = "No reason supplied (older extension).";
+        }
         if (
           !Number.isInteger(input.minutes) ||
           input.minutes < 1 ||

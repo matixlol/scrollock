@@ -376,6 +376,37 @@ test("lock ends a lease without reporting", async (t) => {
   );
 });
 
+test("older clients retain five-minute access without claiming a typed reason", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const token = await f.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const response = await f.request("/api/unlock", {
+    method: "POST",
+    headers,
+    body: '{"site":"x"}',
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).expiresAt, 1_800_000_300_000);
+  const { messages } = await (await f.request("/__mock/messages")).json();
+  assert.deepEqual(messages, [
+    "Fixture User requested a 5-minute x unlock: No reason supplied (older extension).",
+  ]);
+  assert.equal(
+    (
+      await f.request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"instagram","reason":"missing duration"}',
+      })
+    ).status,
+    400,
+  );
+});
+
 test("Node leaseDuration explicitly overrides selected duration", async (t) => {
   const f = await fixture({ leaseDuration: 15_000 });
   t.after(f.close);

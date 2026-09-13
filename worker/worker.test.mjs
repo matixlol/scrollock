@@ -273,6 +273,36 @@ test("Worker sends real mentions, including existing sessions without usernames"
   }
 });
 
+test("Worker keeps older clients compatible without fabricating their reason", async () => {
+  const value = fixture();
+  const token = await value.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const response = await value.request("/api/unlock", {
+    method: "POST",
+    headers,
+    body: '{"site":"x"}',
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).expiresAt, 1_800_000_300_000);
+  const { messages } = await (await value.request("/__mock/messages")).json();
+  assert.deepEqual(messages, [
+    "Fixture User requested a 5-minute x unlock: No reason supplied (older extension).",
+  ]);
+  assert.equal(
+    (
+      await value.request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"instagram","minutes":5}',
+      })
+    ).status,
+    400,
+  );
+});
+
 test("Worker validates unlock input, ignores activity, and persists lock", async () => {
   const value = fixture();
   assert.equal(

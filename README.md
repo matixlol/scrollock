@@ -18,6 +18,8 @@ Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instag
 
 The popup and Telegram login page explain reporting before authorization. Each successful new unlock sends one group message containing the authenticated Telegram user mention, site, selected duration, and trimmed reason. The reason is sent as plain text, not interpreted as markup. Repeated requests during an active lease send nothing and do not extend its deadline. Manual locks and browsing activity send nothing.
 
+During the client rollout, pre-1.1 extensions that omit both duration and reason retain five-minute unlocks. Their report explicitly says “No reason supplied (older extension).” Updated extensions require both fields; partially supplied or invalid fields are rejected. This compatibility path does not collect or report browsing activity.
+
 No browsing paths or activity, message bodies, post content, titles, full URLs, query strings, or search terms are collected or reported. The authenticated compatibility endpoint `POST /api/activity` accepts older clients as a no-op so their active leases are not disrupted. **There is no fabricated “finished” report at expiry**: each page enforces the deadline locally. Intent reports already sent remain in Telegram under the group's retention policy.
 
 ## Quick start: local mock Telegram

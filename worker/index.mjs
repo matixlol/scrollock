@@ -382,6 +382,11 @@ export class ScrollockState {
       const input = await requestBody(request);
       if (!SITES.has(input.site))
         return json(400, { error: "invalid site" }, headers);
+      // Preserve installed pre-1.1 clients during the TestFlight rollout.
+      if (input.minutes === undefined && input.reason === undefined) {
+        input.minutes = 5;
+        input.reason = "No reason supplied (older extension).";
+      }
       if (
         !Number.isInteger(input.minutes) ||
         input.minutes < 1 ||
