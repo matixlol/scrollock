@@ -133,6 +133,15 @@ async function setMinutes(page, input, minutes) {
     await page.keyboard.press("ArrowRight");
   assert.equal(await input.inputValue(), String(minutes));
 }
+function isReasonInput(node) {
+  return (
+    node.nodeName === "INPUT" &&
+    (node.attributes || []).some(
+      (value, index, attributes) =>
+        value === "id" && attributes[index + 1] === "reason",
+    )
+  );
+}
 async function fillInline(page, minutes, reason) {
   const input = await inlineControl(page, (node) => node.nodeName === "INPUT");
   assert.equal(input.unblocks, 1, "only one visible inline Unblock action");
@@ -144,17 +153,11 @@ async function fillInline(page, minutes, reason) {
     (await inlineControl(page, (node) => node.nodeName === "INPUT")).value,
     String(minutes),
   );
-  const textarea = await inlineControl(
-    page,
-    (node) => node.nodeName === "TEXTAREA",
-  );
-  await page.mouse.click(textarea.x, textarea.y);
+  const reasonInput = await inlineControl(page, isReasonInput);
+  await page.mouse.click(reasonInput.x, reasonInput.y);
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type(reason);
-  assert.equal(
-    (await inlineControl(page, (node) => node.nodeName === "TEXTAREA")).value,
-    reason,
-  );
+  assert.equal((await inlineControl(page, isReasonInput)).value, reason);
 }
 async function submitInline(page) {
   const submit = await inlineControl(
@@ -176,7 +179,7 @@ async function submitPopupForm(popup, site, minutes, reason) {
   await openPopupForm(popup, site);
   await setMinutes(popup, popup.locator("#minutes"), minutes);
   await popup.locator("#reason").fill(reason);
-  await popup.locator('#unlock-form button[type="submit"]').click();
+  await popup.locator("#reason").press("Enter");
 }
 try {
   const extension = resolve("dist/chrome");
@@ -439,7 +442,7 @@ try {
   );
   assert.equal(await popup.locator("#x button").isVisible(), true);
   await fillInline(pages.x, 20, "Finish release notes exactly");
-  await submitInline(pages.x);
+  await pages.x.keyboard.press("Enter");
   await eventually(
     () => pages.x.locator("html[data-scrollock-unlocked]").count(),
     "X unlock",

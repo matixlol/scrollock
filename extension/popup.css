@@ -119,8 +119,7 @@ label {
   margin-top: 12px;
   font-size: 15px;
 }
-input,
-textarea {
+input {
   display: block;
   width: 100%;
   min-height: 44px;
@@ -132,9 +131,6 @@ textarea {
   color: var(--label);
   font: inherit;
   font-size: 16px;
-}
-textarea {
-  resize: vertical;
 }
 .actions {
   display: flex;

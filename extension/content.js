@@ -5,7 +5,7 @@
   let expiresAt = 0,
     gate;
   // Closed-shadow events are retargeted to the host, so sites cannot recognize
-  // our textarea as an editor. Isolate shortcuts before site capture handlers,
+  // our input as an editor. Isolate shortcuts before site capture handlers,
   // without cancelling native typing, range keys, selection, Tab or IME.
   for (const type of ["keydown", "keypress", "keyup"]) {
     window.addEventListener(
@@ -62,7 +62,7 @@
       gate = document.createElement("div");
       gate.id = "scrollock-gate";
       const shadow = gate.attachShadow({ mode: "closed" });
-      shadow.innerHTML = `<style>:host{--background:#fff;--label:#000;--secondary:#6c6c70;--action:#007aff;color-scheme:light dark!important;display:block!important;position:relative!important;box-sizing:border-box!important;flex:1 1 100%!important;min-width:0!important;width:100%!important;background:var(--background)!important;color:var(--label)!important;font:17px/1.3 -apple-system,BlinkMacSystemFont,system-ui!important}main,.actions{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px}button{-webkit-appearance:none;appearance:none;min-height:44px;padding:8px 4px;border:0;border-radius:8px;background:transparent;color:var(--action);font:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--action);outline-offset:2px}button:active{opacity:.5}button:disabled{opacity:.4}p{margin:0;padding:0 16px 16px;font-size:13px;color:var(--secondary)}p:empty{display:none}form{padding:0 16px}label{display:block;margin-bottom:12px;font-size:15px}input,textarea{box-sizing:border-box;display:block;width:100%;min-height:44px;margin-top:6px;padding:10px;border:1px solid var(--secondary);border-radius:8px;background:var(--background);color:var(--label);font:16px -apple-system,BlinkMacSystemFont,system-ui}textarea{resize:vertical}.actions{padding:0 0 8px}@media(prefers-color-scheme:dark){:host{--background:#1c1c1e;--label:#fff;--secondary:#aeaeb2;--action:#0a84ff}}</style><main><span>Feed blocked</span><button id="open">Unblock</button></main><form hidden><label>Minutes<input type="number" inputmode="numeric" min="1" max="60" step="1" value="5" required></label><label>Why are you unblocking?<textarea rows="2" maxlength="280" placeholder="A brief reason" required></textarea></label><div class="actions"><button type="button" id="cancel">Cancel</button><button type="submit">Unblock</button></div></form><p role="status" aria-live="polite"></p>`;
+      shadow.innerHTML = `<style>:host{--background:#fff;--label:#000;--secondary:#6c6c70;--action:#007aff;color-scheme:light dark!important;display:block!important;position:relative!important;box-sizing:border-box!important;flex:1 1 100%!important;min-width:0!important;width:100%!important;background:var(--background)!important;color:var(--label)!important;font:17px/1.3 -apple-system,BlinkMacSystemFont,system-ui!important}main,.actions{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px}button{-webkit-appearance:none;appearance:none;min-height:44px;padding:8px 4px;border:0;border-radius:8px;background:transparent;color:var(--action);font:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--action);outline-offset:2px}button:active{opacity:.5}button:disabled{opacity:.4}p{margin:0;padding:0 16px 16px;font-size:13px;color:var(--secondary)}p:empty{display:none}form{padding:0 16px}label{display:block;margin-bottom:12px;font-size:15px}input{box-sizing:border-box;display:block;width:100%;min-height:44px;margin-top:6px;padding:10px;border:1px solid var(--secondary);border-radius:8px;background:var(--background);color:var(--label);font:16px -apple-system,BlinkMacSystemFont,system-ui}.actions{padding:0 0 8px}@media(prefers-color-scheme:dark){:host{--background:#1c1c1e;--label:#fff;--secondary:#aeaeb2;--action:#0a84ff}}</style><main><span>Feed blocked</span><button id="open">Unblock</button></main><form hidden><label>Minutes<input type="number" inputmode="numeric" min="1" max="60" step="1" value="5" required></label><label>Why are you unblocking?<input id="reason" type="text" maxlength="280" placeholder="A brief reason" required></label><div class="actions"><button type="button" id="cancel">Cancel</button><button type="submit">Unblock</button></div></form><p role="status" aria-live="polite"></p>`;
       const button = shadow.querySelector("button");
       const form = shadow.querySelector("form");
       ScrollockTimer(shadow.querySelector("input"));
@@ -82,7 +82,7 @@
         const submit = form.querySelector('[type="submit"]');
         if (!event.isTrusted || submit.disabled) return;
         const status = shadow.querySelector('[role="status"]');
-        const reason = shadow.querySelector("textarea").value.trim();
+        const reason = shadow.querySelector("#reason").value.trim();
         if (!reason) {
           status.textContent = "Enter a brief reason.";
           return;
