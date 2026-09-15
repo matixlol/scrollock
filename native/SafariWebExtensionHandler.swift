@@ -7,6 +7,10 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let message = request?.userInfo?[SFExtensionMessageKey] as? [String: Any] ?? [:]
         var result: [String: Any]
         do {
+            if let apiOrigin = message["apiOrigin"] as? String,
+               let sessionToken = message["sessionToken"] as? String {
+                try ScreenTimeStore.syncConnection(apiOrigin: apiOrigin, sessionToken: sessionToken)
+            }
             switch message["type"] as? String {
             case "status":
                 ScreenTimeStore.reconcile()

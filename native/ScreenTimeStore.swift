@@ -7,6 +7,25 @@ enum ScreenTimeStore {
     static let sites = ["x", "instagram", "youtube"]
     static let defaults = UserDefaults(suiteName: "group.ar.com.poronga.Scrollock")!
 
+    static var hasConnection: Bool {
+        guard let token = defaults.string(forKey: "connection.sessionToken") else { return false }
+        return !token.isEmpty && defaults.string(forKey: "connection.apiOrigin") != nil
+    }
+
+    static func syncConnection(apiOrigin: String, sessionToken: String) throws {
+        guard let url = URL(string: apiOrigin),
+              url.user == nil,
+              url.password == nil,
+              (url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url.host)))
+        else { throw NativeError.invalidRequest }
+        defaults.set(url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")), forKey: "connection.apiOrigin")
+        if sessionToken.isEmpty {
+            defaults.removeObject(forKey: "connection.sessionToken")
+        } else {
+            defaults.set(sessionToken, forKey: "connection.sessionToken")
+        }
+    }
+
     static func selection(_ site: String) -> FamilyActivitySelection {
         guard let data = defaults.data(forKey: "selection.\(site)"),
               let value = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data)
@@ -31,11 +50,18 @@ enum ScreenTimeStore {
 
     static func lock(_ site: String) {
         defaults.removeObject(forKey: "expires.\(site)")
+        defaults.removeObject(forKey: "shieldMessage.\(site)")
         applyShield(site)
         DeviceActivityCenter().stopMonitoring([DeviceActivityName("scrollock.\(site)")])
     }
 
     static func applyShield(_ site: String) {
+#if DEBUG && targetEnvironment(simulator)
+        if simulatorDemoEnabled {
+            store(site).shield.applicationCategories = site == "x" ? .all() : nil
+            return
+        }
+#endif
         let tokens = selection(site).applicationTokens
         store(site).shield.applications = tokens.isEmpty ? nil : tokens
     }
@@ -47,11 +73,51 @@ enum ScreenTimeStore {
         }
     }
 
+    static func expiry(_ site: String) -> Date? {
+        let value = defaults.double(forKey: "expires.\(site)")
+        return value > Date().timeIntervalSince1970 ? Date(timeIntervalSince1970: value) : nil
+    }
+
+    static func site(containing token: ApplicationToken) -> String? {
+#if DEBUG && targetEnvironment(simulator)
+        if simulatorDemoEnabled { return "x" }
+#endif
+        return sites.first { selection($0).applicationTokens.contains(token) }
+    }
+
+    static func shieldMessage(_ site: String) -> String? {
+        defaults.string(forKey: "shieldMessage.\(site)")
+    }
+
+    static func setShieldMessage(_ message: String?, for site: String) {
+        defaults.set(message, forKey: "shieldMessage.\(site)")
+    }
+
+    static func validateUserUnlock(_ site: String, minutes: Int, reason: String) throws {
+        let cleanReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard sites.contains(site),
+              (5...60).contains(minutes),
+              minutes.isMultiple(of: 5),
+              !cleanReason.isEmpty,
+              cleanReason.count <= 280 else { throw NativeError.invalidRequest }
+        var hasSelectedApps = !selection(site).applicationTokens.isEmpty
+#if DEBUG && targetEnvironment(simulator)
+        hasSelectedApps = hasSelectedApps || simulatorDemoEnabled
+#endif
+        guard hasSelectedApps else { throw NativeError.noAppsSelected }
+        guard AuthorizationCenter.shared.authorizationStatus == .approved else {
+            throw NativeError.authorizationRequired
+        }
+    }
+
     static func unlock(_ site: String, until expiry: Date) throws -> Int {
         guard sites.contains(site), expiry > Date(), expiry.timeIntervalSinceNow <= 3601 else {
             throw NativeError.invalidRequest
         }
-        let count = selection(site).applicationTokens.count
+        var count = selection(site).applicationTokens.count
+#if DEBUG && targetEnvironment(simulator)
+        if simulatorDemoEnabled && site == "x" { count = 1 }
+#endif
         if count == 0 { return 0 }
         guard AuthorizationCenter.shared.authorizationStatus == .approved else {
             throw NativeError.authorizationRequired
@@ -73,9 +139,37 @@ enum ScreenTimeStore {
             defaults.removeObject(forKey: "expires.\(site)")
             throw error
         }
+        defaults.removeObject(forKey: "shieldMessage.\(site)")
         store(site).shield.applications = nil
+#if DEBUG && targetEnvironment(simulator)
+        store(site).shield.applicationCategories = nil
+#endif
         return count
     }
+
+#if DEBUG && targetEnvironment(simulator)
+    private static let simulatorDemoKey = "simulator.categoryShieldDemo"
+
+    static var simulatorDemoEnabled: Bool {
+        defaults.bool(forKey: simulatorDemoKey)
+    }
+
+    static func startSimulatorDemo() {
+        defaults.set(true, forKey: simulatorDemoKey)
+        defaults.removeObject(forKey: "expires.x")
+        defaults.removeObject(forKey: "shieldMessage.x")
+        store("x").shield.applications = nil
+        store("x").shield.applicationCategories = .all()
+    }
+
+    static func stopSimulatorDemo() {
+        defaults.removeObject(forKey: simulatorDemoKey)
+        defaults.removeObject(forKey: "expires.x")
+        defaults.removeObject(forKey: "shieldMessage.x")
+        store("x").shield.applicationCategories = nil
+        applyShield("x")
+    }
+#endif
 
     static func relockIfExpired(_ activity: DeviceActivityName) {
         let site = String(activity.rawValue.dropFirst("scrollock.".count))
@@ -91,12 +185,16 @@ enum ScreenTimeStore {
 }
 
 enum NativeError: LocalizedError {
-    case invalidRequest, authorizationRequired, duplicateApps
+    case invalidRequest, authorizationRequired, duplicateApps, noAppsSelected, connectionRequired, reportingUnavailable, server(String)
     var errorDescription: String? {
         switch self {
         case .invalidRequest: return "Invalid native unlock request."
         case .authorizationRequired: return "Open Scrollock and allow Screen Time access first."
         case .duplicateApps: return "An app can belong to only one site. Remove it from the other selection first."
+        case .noAppsSelected: return "Choose at least one app for this site first."
+        case .connectionRequired: return "Connect Telegram in Safari’s Scrollock extension first."
+        case .reportingUnavailable: return "Telegram reporting is unavailable. Apps stay blocked. Try again."
+        case .server(let message): return message
         }
     }
 }

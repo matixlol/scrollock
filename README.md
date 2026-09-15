@@ -85,7 +85,7 @@ The production backend is a Worker at `scrollock.poronga.com.ar`, with a single 
 
 ## iOS Safari installation
 
-The build produces **`dist/safari`** with the same content/popup code. Target iOS 17+ with current Safari. The containing iPhone app adds optional **Screen Time controls for selected installed apps**: allow access, select individual apps for each site, then request timed unblocks with a reason in Safari. Only Scrollock's shields are removed; parental or other Screen Time limits still apply. App tokens stay on-device and no usage events are monitored. Native relocking uses iOS callbacks, which can be delayed. See [native implementation and distribution requirements](native/README.md). Chrome on iOS does not load this Chrome extension.
+The build produces **`dist/safari`** with the same content/popup code. Target iOS 17+ with current Safari. The containing iPhone app adds optional **Screen Time controls for selected installed apps**: allow access, select individual apps for each site, then request timed unblocks with a duration and reason either in the app or in Safari. A custom iOS block screen also offers a one-tap, reported five-minute unblock. Only Scrollock's shields are removed; parental or other Screen Time limits still apply. App tokens stay on-device and no usage events are monitored. Native relocking uses iOS callbacks, which can be delayed. See [native implementation and distribution requirements](native/README.md). Chrome on iOS does not load this Chrome extension.
 
 ### With macOS + Xcode
 
@@ -96,7 +96,7 @@ SAFARI_BUNDLE_ID=ar.com.poronga.Scrollock npm run safari:package
 
 The script uses Apple's `safari-web-extension-packager` (previously named `safari-web-extension-converter`) to generate the native iOS containing app and extension target under `safari/`. It references `dist/safari`, so rebuild those resources after JS changes.
 
-Open the generated project, select your Apple signing team for all three targets (app, Safari extension, Device Activity monitor), review manifest compatibility warnings, build, and run on your iPhone. Family Controls and the shared App Group require provisioning; distribution requires Apple's approval. Enable Scrollock in Settings → Apps → Safari → Extensions, grant access to all three websites, and allow its configured API host if Safari requests it. On a site, open Safari's extensions menu to access the popup. Authenticate, return to Safari, and check login.
+Open the generated project, select your Apple signing team for all five targets (app, Safari extension, Device Activity monitor, shield configuration, and shield action), review manifest compatibility warnings, build, and run on your iPhone. Family Controls and the shared App Group require provisioning; distribution requires Apple's approval. Enable Scrollock in Settings → Apps → Safari → Extensions, grant access to all three websites, and allow its configured API host if Safari requests it. On a site, open Safari's extensions menu to access the popup. Authenticate, return to Safari, and check login once so the native app can use the same expiring session for reported unblocks.
 
 For friends, distribute a signed build via TestFlight/App Store or your chosen valid Apple development distribution route. Apple Developer membership/signing and each installation's permissions are required; copying an unpacked folder onto an iPhone is not installation.
 
@@ -112,13 +112,15 @@ On a Mac where Xcode is signed into the Apple developer team and the Apple Distr
 npm run safari:deploy
 ```
 
-This runs the checks, makes a production build, regenerates the native Xcode project, signs all three targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new. Do not strip Screen Time entitlements to work around signing failures.
+This runs the checks, makes a production build, regenerates the native Xcode project, signs all five targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new. Do not strip Screen Time entitlements to work around signing failures.
 
 The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacked extensions. Unzip it before using **Load unpacked**. Automatic signed Chrome installation and updates require a Chrome Web Store listing (or enterprise browser policy), which is intentionally outside this friends-only distribution.
 
 **Verification boundary:** the Safari resources and native Xcode project can be generated on macOS, but signing requires an Apple account in Xcode and Safari behavior must be checked on a real iPhone before TestFlight distribution. Playwright Chromium is not an iOS Safari extension runtime.
 
-For local simulator checks, build the `Scrollock` scheme with `-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`, install the resulting app with `xcrun simctl install booted`, and enable it in Safari's **Manage Extensions** menu. Grant website access before testing. Check the popup in Safari's half-height sheet: connection and all three feed controls should fit its width, buttons should be touch-sized, and the reporting explanation should be reachable by scrolling. Verify that YouTube search and bottom navigation still respond with the feed paused, and that unlock/expiry restores and hides the feed without replacing the page shell.
+For local Safari-only simulator checks, build the `Scrollock` scheme with `-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`, install the resulting app with `xcrun simctl install booted`, and enable it in Safari's **Manage Extensions** menu. Grant website access before testing. Check the popup in Safari's half-height sheet: connection and all three feed controls should fit its width, buttons should be touch-sized, and the reporting explanation should be reachable by scrolling. Verify that YouTube search and bottom navigation still respond with the feed paused, and that unlock/expiry restores and hides the feed without replacing the page shell.
+
+Screen Time authorization requires a normally signed Debug simulator build. On a fresh iOS 26.5 simulator, enroll simulated Face ID, approve Family Controls with Face ID, then send a matching-face event. The simulator accepts Managed Settings but does not enforce app shields, so Debug builds expose **Simulator QA → Preview block screen** to render the production design and exercise the same native reporting, lease, and relock path. That QA surface is absent from Release and device builds; OS-owned shield extension dispatch remains a physical-device verification item.
 
 ## Tests
 
@@ -141,12 +143,13 @@ Coverage includes signed login validation/replay, group membership rejection, pr
 - Unlock each site; confirm one real group intent report with its duration and reason, and no browsing-activity or lock reports.
 - Wait for the selected duration with popup closed, reload, switch tabs, background Safari, and resume after the deadline. Confirm the feed relocks.
 - Disconnect the server or remove bot posting permission: a new unlock must fail closed.
+- Select a native app, open it to see the Scrollock shield, and use **Unblock for 5 minutes**. Confirm the intent report arrives before the shield disappears and that a reporting failure leaves the shield in place with an error.
 - Verify browser permission prompts, Safari background execution, origin allowlisting, and your signed distribution build.
 
 ## Layout and credits
 
 - `extension/`: shared Web Extension, including blocking rules and unblock forms.
-- `native/`: iOS Screen Time settings, Safari bridge, and timed relocking monitor.
+- `native/`: iOS Screen Time settings, custom block screen/action, Safari bridge, and timed relocking monitor.
 - `server/`: Telegram auth, fixed-group reporting, persistence, API tests.
 - `scripts/`: browser builds, syntax checks, Safari native packaging.
 - `tests/`: rule tests and actual-extension end-to-end test.

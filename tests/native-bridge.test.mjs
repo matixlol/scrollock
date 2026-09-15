@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
-test("Safari bridge receives only the granted site/deadline and failures preserve the website lease", async () => {
+test("Safari bridge syncs native auth, derives the site, and preserves website leases on native failure", async () => {
   const storage = { session: { token: "private-token" }, leases: {} };
   const nativeCalls = [],
     requests = [];
@@ -75,6 +75,8 @@ test("Safari bridge receives only the granted site/deadline and failures preserv
     type: "unlock",
     site: "x",
     expiresAt: lease.expiresAt,
+    apiOrigin: "https://api.example",
+    sessionToken: "private-token",
   });
   fail = true;
   const result = await context.handle(fields, sender);
@@ -89,6 +91,39 @@ test("Safari bridge receives only the granted site/deadline and failures preserv
   storage.leases.x.expiresAt = Date.now() - 1;
   onAlarm();
   await vm.runInContext("queue", context);
-  assert.deepEqual(nativeCalls.at(-1), { type: "lock", site: "x" });
+  assert.deepEqual(nativeCalls.at(-1), {
+    type: "lock",
+    site: "x",
+    apiOrigin: "https://api.example",
+    sessionToken: "private-token",
+  });
   assert.equal(storage.leases.x, undefined);
+});
+
+test("native project config installs actionable custom Screen Time shields", async () => {
+  const [config, action, appearance, app] = await Promise.all([
+    readFile(
+      new URL("../scripts/configure-native.py", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../native/ShieldActionExtension.swift", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../native/ShieldConfigurationExtension.swift", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../native/ViewController.swift", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  assert.match(config, /Scrollock Shield Configuration/);
+  assert.match(config, /Scrollock Shield Action/);
+  assert.match(action, /requestUnlock/);
+  assert.match(action, /Opened from the iOS block screen/);
+  assert.match(appearance, /Unblock for 5 minutes/);
+  assert.match(app, /Temporary access/);
+  assert.match(app, /submitUnblock/);
 });
