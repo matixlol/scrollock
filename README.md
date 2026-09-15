@@ -32,10 +32,10 @@ npm run build
 ```
 
 1. Open Chrome's Extensions page, enable Developer mode, choose **Load unpacked**, and select `dist/chrome`.
-2. Copy its extension ID, then start the mock server **on the same computer as Chrome**:
+2. Copy its extension ID, then start the mock server **on the same computer as Chrome**. The committed Chrome key pins the ID, so it is always `ahdgaahcjnpaegmopigcpgabcjmcilid`; a mismatch here makes unblock attempts fail instantly with "Failed to fetch":
 
    ```sh
-   MOCK_TELEGRAM=1 ALLOWED_ORIGINS=chrome-extension://YOUR_EXTENSION_ID npm start
+   MOCK_TELEGRAM=1 ALLOWED_ORIGINS=chrome-extension://ahdgaahcjnpaegmopigcpgabcjmcilid npm start
    ```
 
 3. Pin Scrollock. Open its popup and choose **Connect**.

@@ -4,16 +4,49 @@ const api = globalThis.browser || chrome;
 const sites = ["x", "instagram", "youtube"];
 let queue = Promise.resolve();
 async function request(path, body, token) {
-  const response = await fetch(SCROLLOCK_API + path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(12000),
-  });
-  const result = await response.json();
+  let response;
+  try {
+    response = await fetch(SCROLLOCK_API + path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (error) {
+    // Distinguish "unreachable" (connection refused, DNS, offline) from
+    // "rejected" (the browser hid the server's response: origin not in
+    // ALLOWED_ORIGINS, or host_permissions missing the API origin).
+    console.warn(
+      `Scrollock request to ${SCROLLOCK_API}${path} failed:`,
+      error?.name,
+      error?.message,
+    );
+    let reachable = false;
+    try {
+      await fetch(SCROLLOCK_API + "/health", {
+        mode: "no-cors",
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+      reachable = true;
+    } catch {}
+    throw new Error(
+      error?.name === "TimeoutError"
+        ? `The server at ${SCROLLOCK_API} took too long to respond. Feeds stay locked. Try again.`
+        : reachable
+          ? `The server at ${SCROLLOCK_API} rejected this extension's request. Feeds stay locked. Its ALLOWED_ORIGINS must include this extension's origin.`
+          : `Can't reach the server at ${SCROLLOCK_API}. Feeds stay locked. Check your connection and that the server is running.`,
+    );
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    result = {};
+  }
   if (!response.ok)
     throw new Error(
       response.status === 401
