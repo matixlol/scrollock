@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Scrollock has no persistent local services or authentication to restore.
+echo "Scrollock orb ready."
