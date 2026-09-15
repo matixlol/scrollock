@@ -21,6 +21,8 @@ test("feed routes block but direct links and messaging remain available", () => 
   for (const [site, path] of [
     ["x", "/messages/123"],
     ["x", "/user/status/123"],
+    ["x", "/search"],
+    ["x", "/search/"],
     ["instagram", "/direct/inbox/"],
     ["instagram", "/p/abc/"],
     ["youtube", "/watch"],

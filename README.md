@@ -4,10 +4,10 @@ Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instag
 
 ## What it does
 
-- **X / Twitter:** blocks Home, Explore, and Search timelines.
+- **X / Twitter:** blocks Home and Explore timelines. Search results stay accessible.
 - **Instagram:** blocks Home, Explore, and Reels.
 - **YouTube:** blocks Home, feed pages (including subscriptions), Shorts, and supported recommendation containers beside videos.
-- Direct messages, profiles, normal post links, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
+- Direct messages, profiles, normal post links, X search, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
 - A break applies to that site across tabs in the same browser. Reloading a page or closing the popup does not reset the deadline. Repeated unlock requests reuse the active deadline; another break after expiry sends another report.
 - A Telegram unblock-intent report must succeed before an unlock is granted. Manual locking takes effect without sending another report.
 - Route changes are detected on single-page apps as well as full navigations. Only feed containers are hidden; the site's navigation and search controls remain usable. A pause notice sits inside the feed area, never over the whole page. Feed selectors may need updates when sites change their markup; unrecognized layouts are not replaced with a whole-page blocker.
