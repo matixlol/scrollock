@@ -243,7 +243,7 @@ try {
       const host = new URL(route.request().url()).hostname;
       const feed = "<h1>Fixture feed</h1><p>A stream of posts</p>";
       const content = host.includes("x.com")
-        ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main>`
+        ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main><aside data-testid="sidebarColumn"><div aria-label="Trending"><div><div><form role="search"><input aria-label="Sidebar search" /></form></div><div id="news"><h2 role="heading">Today's News</h2></div><section role="region" id="trending">What's happening</section></div></div></aside>`
         : host.includes("instagram")
           ? `<main><div><article id="feed">${feed}</article></div></main>`
           : host === "www.youtube.com"
@@ -269,11 +269,25 @@ try {
       site + " blocked",
     );
     assert.equal(await page.locator("#feed").isVisible(), false);
+    if (site === "x") {
+      assert.equal(await page.locator("#news").isVisible(), false);
+      assert.equal(await page.locator("#trending").isVisible(), false);
+      await page
+        .getByRole("textbox", { name: "Sidebar search" })
+        .fill("search stays usable");
+    }
     await page.getByRole("button", { name: "Compose" }).click();
     assert.equal(await page.getByText("Clicked", { exact: true }).count(), 1);
     if (site !== "instagram") {
-      await page.getByRole("textbox", { name: "Search" }).fill("a friend");
-      assert.equal(await page.getByRole("textbox").inputValue(), "a friend");
+      await page
+        .getByRole("textbox", { name: "Search", exact: true })
+        .fill("a friend");
+      assert.equal(
+        await page
+          .getByRole("textbox", { name: "Search", exact: true })
+          .inputValue(),
+        "a friend",
+      );
     }
     await page.getByRole("link", { name: "Messages" }).click();
     await eventually(
@@ -448,6 +462,8 @@ try {
     "X unlock",
   );
   assert.equal(await pages.x.locator("#feed").isVisible(), true);
+  assert.equal(await pages.x.locator("#news").isVisible(), true);
+  assert.equal(await pages.x.locator("#trending").isVisible(), true);
   assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
   await eventually(
     () =>

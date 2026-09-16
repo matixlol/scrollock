@@ -20,7 +20,7 @@
   // Keep the site shell, navigation and search controls intact. Never fall back
   // to hiding body/main when a site changes its feed markup.
   const feeds = {
-    x: '[data-testid="primaryColumn"] section[role="region"], [data-testid="primaryColumn"] [data-testid="cellInnerDiv"]',
+    x: '[data-testid="primaryColumn"] section[role="region"], [data-testid="primaryColumn"] [data-testid="cellInnerDiv"], [data-testid="sidebarColumn"] section[role="region"], [data-testid="sidebarColumn"] [aria-label="Trending"] > div > :has(form[role="search"]) ~ *',
     instagram:
       'main > :nth-child(1) > div[style], main article, main div:has(> div > div > a[href^="/p/"]), section > main div.xw7yly9 > div.xmnaoh6',
     youtube:

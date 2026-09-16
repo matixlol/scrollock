@@ -4,7 +4,7 @@ Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instag
 
 ## What it does
 
-- **X / Twitter:** blocks Home and Explore timelines. Search results stay accessible.
+- **X / Twitter:** blocks Home and Explore timelines plus sidebar news and trends. Search stays accessible.
 - **Instagram:** blocks Home, Explore, and Reels.
 - **YouTube:** blocks Home, feed pages (including subscriptions), Shorts, and supported recommendation containers beside videos.
 - Direct messages, profiles, normal post links, X search, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
