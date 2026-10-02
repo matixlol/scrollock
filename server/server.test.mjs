@@ -65,6 +65,25 @@ async function fixture({ mock = true, telegram, failure, leaseDuration } = {}) {
   };
 }
 
+test("downloads are public and do not bypass session checks", async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  const response = await f.request("/downloads");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const page = await response.text();
+  assert.match(
+    page,
+    /https:\/\/github.com\/matixlol\/scrollock\/releases\/latest\/download\/scrollock-chrome.zip/,
+  );
+  assert.match(page, /same folder you originally loaded/);
+  assert.match(page, /Do not remove the extension/);
+  assert.equal(
+    (await f.request("/api/unlock", { method: "POST" })).status,
+    401,
+  );
+});
+
 test("pairing is pending, secret protected, authorized, and consumed once", async (t) => {
   const f = await fixture();
   t.after(f.close);

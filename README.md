@@ -2,6 +2,23 @@
 
 Chrome + iOS Safari Web Extension for a small group of friends. Blocks X, Instagram, and YouTube feeds by default. A Telegram-authenticated friend can unlock one site for a chosen **1–60 minute** duration after providing a reason, with the unblock intent sent to **one fixed Telegram group**.
 
+## Download and update
+
+**[Download the latest Chrome ZIP](https://github.com/matixlol/scrollock/releases/latest/download/scrollock-chrome.zip)** · [Latest build and release notes](https://github.com/matixlol/scrollock/releases/latest)
+
+Every passing GitHub build on `main` automatically publishes a versioned extension package. The download URL stays the same between builds. The popup shows the installed version and has a **Download / update** link to the [download instructions](https://scrollock.poronga.com.ar/downloads).
+
+To update Chrome without losing your Telegram connection:
+
+1. Download and unzip the latest package.
+2. Copy its contents into **the same folder you originally loaded**, replacing the old files. Keep `manifest.json` directly inside that folder, not inside another nested folder.
+3. Open `chrome://extensions`, enable Developer mode, and click **Reload** on Scrollock.
+4. Refresh your open X, Instagram, and YouTube tabs. Check the version in the Scrollock popup against the build number in the release notes.
+
+**Do not remove/reinstall the extension.** Replacing its files and reloading preserves local extension storage, including Telegram login and unlock deadlines. For a first installation, unzip into a permanent folder and select it with **Load unpacked** at `chrome://extensions`. Chrome does not silently update unpacked extensions.
+
+**Safari / iPhone:** update the signed Scrollock app through TestFlight; enable Automatic Updates there if desired. The [Safari source ZIP](https://github.com/matixlol/scrollock/releases/latest/download/scrollock-safari.zip) is for developer packaging, not direct iPhone installation.
+
 ## What it does
 
 - **X / Twitter:** blocks Home and Explore timelines plus sidebar news and trends. Search stays accessible.
@@ -73,7 +90,7 @@ npm run deploy
 curl https://scrollock.poronga.com.ar/health
 ```
 
-Pushes to `main` run the complete test suite, build downloadable Chrome and Safari ZIPs, deploy the Worker, check its production health endpoint, and publish the ZIPs on the [repository's latest GitHub Release](https://github.com/matixlol/scrollock/releases/latest). Pull requests run the same checks and build the packages without deploying. Configure this GitHub Actions repository secret:
+Pushes to `main` run the complete test suite and build downloadable Chrome and Safari ZIPs. CI appends its run number to the extension version (for example `1.1.1.42`) so each build is identifiable. After verification, publishing the ZIPs on the [repository's latest GitHub Release](https://github.com/matixlol/scrollock/releases/latest) and deploying the Worker run independently: a backend deployment failure does not block extension downloads. Pull requests run the same checks and build the packages without deploying or publishing a release. Configure this GitHub Actions repository secret:
 
 - `CLOUDFLARE_API_TOKEN` — a least-privilege token scoped to this account and the `poronga.com.ar` zone, with Workers Scripts and Workers Routes edit access
 

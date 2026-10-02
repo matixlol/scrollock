@@ -1,4 +1,5 @@
 import { authorizedPage } from "../server/authorized-page.mjs";
+import { downloadsPage } from "../server/downloads-page.mjs";
 
 const encoder = new TextEncoder();
 const SITES = new Set(["x", "instagram", "youtube"]);
@@ -227,6 +228,11 @@ export class ScrollockState {
 
     if (request.method === "GET" && url.pathname === "/health")
       return json(200, { ok: true }, headers);
+
+    if (request.method === "GET" && url.pathname === "/downloads")
+      return new Response(downloadsPage, {
+        headers: { ...headers, "content-type": "text/html; charset=utf-8" },
+      });
 
     if (request.method === "POST" && url.pathname === "/api/pair") {
       const pair = {

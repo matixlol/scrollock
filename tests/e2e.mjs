@@ -26,7 +26,7 @@ const server = await createServer({
 await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 cfg.origin = `http://127.0.0.1:${server.address().port}`;
 execFileSync(process.execPath, ["scripts/build.mjs"], {
-  env: { ...process.env, API_ORIGIN: cfg.origin },
+  env: { ...process.env, API_ORIGIN: cfg.origin, EXTENSION_BUILD_NUMBER: "41" },
   stdio: "inherit",
 });
 let context;
@@ -223,6 +223,31 @@ try {
   );
   await checkTouchLayout(popup, "disconnected");
   assert.equal(await popup.locator("header, nav, footer, img, svg").count(), 0);
+  assert.match(await popup.locator("#version").textContent(), /\.41$/);
+  const downloadsPromise = context.waitForEvent("page");
+  await popup.getByRole("link", { name: "Download / update" }).click();
+  const downloads = await downloadsPromise;
+  await downloads.waitForLoadState();
+  assert.equal(downloads.url(), cfg.origin + "/downloads");
+  assert.equal(
+    await downloads
+      .getByRole("link", { name: "Download for Chrome", exact: true })
+      .getAttribute("href"),
+    "https://github.com/matixlol/scrollock/releases/latest/download/scrollock-chrome.zip",
+  );
+  for (const width of [320, 390, 1280]) {
+    await downloads.setViewportSize({ width, height: 900 });
+    assert.equal(
+      await downloads.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `download instructions fit ${width}px without horizontal overflow`,
+    );
+  }
+  await downloads.setViewportSize({ width: 390, height: 900 });
+  await checkAppearance(downloads, "body", "scrollock-downloads");
+  await downloads.close();
   await checkAppearance(popup, "html", "popup");
   await popup
     .locator("body")
@@ -705,8 +730,45 @@ try {
     "SPA navigation and reload never issue activity requests",
   );
   assert.deepEqual(errors, []);
+  const storedBeforeUpdate = await worker.evaluate(() =>
+    chrome.storage.local.get(["session", "leases"]),
+  );
+  execFileSync(process.execPath, ["scripts/build.mjs"], {
+    env: {
+      ...process.env,
+      API_ORIGIN: cfg.origin,
+      EXTENSION_BUILD_NUMBER: "42",
+    },
+    stdio: "inherit",
+  });
+  const extensionsPage = await context.newPage();
+  await extensionsPage.goto("chrome://extensions");
+  await extensionsPage.locator("extensions-toolbar #devMode").click();
+  await extensionsPage.locator("extensions-item #dev-reload-button").click();
+  const updatedPopup = await context.newPage();
+  await updatedPopup.goto(extensionOrigin + "/popup.html");
+  await eventually(
+    () =>
+      updatedPopup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Connected as Fixture User"),
+    "updating and reloading keeps the Telegram connection",
+  );
+  assert.match(await updatedPopup.locator("#version").textContent(), /\.42$/);
+  assert.deepEqual(
+    await updatedPopup.evaluate(() =>
+      chrome.storage.local.get(["session", "leases"]),
+    ),
+    storedBeforeUpdate,
+    "same-folder updates preserve the saved login and leases",
+  );
+  await updatedPopup.screenshot({
+    path: join(artifacts, "scrollock-updated-popup.png"),
+    fullPage: true,
+  });
   console.log(
-    "PASS: real Chrome extension + mock Telegram: required unlock forms, validation, exact reports, login, isolation, SPA/reload privacy, cross-tab expiry, closed-popup expiry, manual lock, and bot failure.",
+    "PASS: real Chrome extension + mock Telegram: downloads, same-folder update preserves login/leases, required unlock forms, validation, exact reports, login, isolation, SPA/reload privacy, cross-tab expiry, closed-popup expiry, manual lock, and bot failure.",
   );
   console.log(
     "Expiry uses a 15-second server test lease; unit tests assert selected production durations from 1 to 60 minutes.",

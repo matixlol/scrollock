@@ -36,6 +36,8 @@ jobs:
 
       - name: Build production extensions
         run: npm run build:production
+        env:
+          EXTENSION_BUILD_NUMBER: ${{ github.run_number }}
 
       - name: Create downloadable extension packages
         run: |
@@ -77,7 +79,7 @@ jobs:
   publish-packages:
     name: Publish GitHub release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [verify, deploy-worker]
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -99,5 +101,13 @@ jobs:
             scrollock-safari.zip \
             --target "$GITHUB_SHA" \
             --title "Scrollock build ${GITHUB_RUN_NUMBER}" \
-            --notes "Automated production extension packages for commit ${GITHUB_SHA}. Unzip the Chrome package before loading it as an unpacked extension." \
+            --notes "Automated extension build ${GITHUB_RUN_NUMBER} for commit ${GITHUB_SHA}.
+
+          Chrome update: unzip scrollock-chrome.zip, copy its contents into the SAME folder you originally loaded (replace the old files), click Reload on Scrollock at chrome://extensions, then refresh your social-site tabs. Do not remove the extension; reloading keeps your Telegram login and settings.
+
+          First install: unzip into a permanent folder, enable Developer mode at chrome://extensions, and select that folder with Load unpacked.
+
+          Safari ZIP: developer resources for signing/packaging, not an installable iPhone app. Update the signed app through TestFlight.
+
+          Extension packages publish independently of the backend deployment. Check the workflow for backend deployment status." \
             --latest

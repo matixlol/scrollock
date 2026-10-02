@@ -56,6 +56,24 @@ function fixture(storage = new MemoryStorage()) {
   };
 }
 
+test("Worker downloads are public and do not bypass session checks", async () => {
+  const value = fixture();
+  const response = await value.request("/downloads");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const page = await response.text();
+  assert.match(
+    page,
+    /https:\/\/github.com\/matixlol\/scrollock\/releases\/latest\/download\/scrollock-chrome.zip/,
+  );
+  assert.match(page, /same folder you originally loaded/);
+  assert.match(page, /Do not remove the extension/);
+  assert.equal(
+    (await value.request("/api/unlock", { method: "POST" })).status,
+    401,
+  );
+});
+
 test("Safari installation origins can pair when enabled, without bypassing authentication", async () => {
   const value = fixture();
   const safari = "safari-web-extension://508d8d32-17ee-45b2-9c6b-6077d09412f9";

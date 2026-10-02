@@ -1,4 +1,4 @@
-/* global chrome, browser, ScrollockTimer */
+/* global chrome, browser, ScrollockTimer, SCROLLOCK_API */
 const api = globalThis.browser || chrome;
 const names = {
   x: "X / Twitter",
@@ -10,6 +10,9 @@ let state = {},
   selectedSite;
 const status = document.querySelector("#status");
 const form = document.querySelector("#unlock-form");
+document.querySelector("#version").textContent =
+  `Version ${api.runtime.getManifest().version}`;
+document.querySelector("#downloads").href = SCROLLOCK_API + "/downloads";
 ScrollockTimer(document.querySelector("#minutes"));
 async function send(type, site, fields = {}) {
   const result = await api.runtime.sendMessage({ type, site, ...fields });
