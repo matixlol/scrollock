@@ -7,6 +7,7 @@ import {
 } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { authorizedPage } from "./authorized-page.mjs";
 
 const json = (res, status, value, headers = {}) => {
   const body = JSON.stringify(value);
@@ -360,7 +361,7 @@ export async function createServer(options = {}) {
       if (!(await authorizePair(pairId, user)))
         return json(res, 404, { error: "pairing not found" });
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      return res.end("<p>Authorized. Return to the extension.</p>");
+      return res.end(authorizedPage);
     }
     if (
       cfg.mock &&

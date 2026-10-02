@@ -1,3 +1,5 @@
+import { authorizedPage } from "../server/authorized-page.mjs";
+
 const encoder = new TextEncoder();
 const SITES = new Set(["x", "instagram", "youtube"]);
 
@@ -360,7 +362,7 @@ export class ScrollockState {
       }
       pair.user = user;
       await this.storage.put(key, pair);
-      return new Response("<p>Authorized. Return to the extension.</p>", {
+      return new Response(authorizedPage, {
         headers: {
           ...secureHeaders,
           "content-type": "text/html; charset=utf-8",

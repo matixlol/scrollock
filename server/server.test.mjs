@@ -85,7 +85,19 @@ test("pairing is pending, secret protected, authorized, and consumed once", asyn
     ).status,
     401,
   );
-  await f.request(`/api/telegram-auth?pair=${p.id}&mock=1`);
+  const authorized = await f.request(`/api/telegram-auth?pair=${p.id}&mock=1`);
+  assert.equal(authorized.status, 200);
+  assert.match(authorized.headers.get("content-type"), /text\/html/);
+  const page = await authorized.text();
+  assert.match(page, /<h1 id="title">Telegram authorized<\/h1>/);
+  assert.match(
+    page,
+    /Return to the Scrollock extension to finish connecting\./,
+  );
+  assert.ok(
+    !page.includes(p.secret),
+    "confirmation must not expose credentials",
+  );
   assert.ok(
     (
       await (

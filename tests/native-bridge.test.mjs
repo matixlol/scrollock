@@ -92,3 +92,85 @@ test("Safari bridge receives only the granted site/deadline and failures preserv
   assert.deepEqual(nativeCalls.at(-1), { type: "lock", site: "x" });
   assert.equal(storage.leases.x, undefined);
 });
+
+test("authentication failures clear only rejected credentials; temporary pairing failures remain retryable", async () => {
+  const session = { token: "old-token", user: { name: "Fixture User" } };
+  const pair = { id: "pair-id", secret: "pair-secret" };
+  const storage = { session, pair, leases: {} };
+  let responseStatus = 502;
+  const requests = [];
+  const context = vm.createContext({
+    chrome: {
+      storage: {
+        local: {
+          get: async () => structuredClone(storage),
+          set: async (value) => Object.assign(storage, structuredClone(value)),
+          remove: async (key) => delete storage[key],
+        },
+      },
+      runtime: {
+        getURL: () => "chrome-extension://test/",
+        onMessage: { addListener() {} },
+      },
+      alarms: { onAlarm: { addListener() {} } },
+    },
+    URL,
+    AbortSignal,
+    SCROLLOCK_API: "https://api.example",
+    fetch: async (url, init) => {
+      requests.push({ url, authorization: init.headers.Authorization });
+      return {
+        ok: responseStatus === 200,
+        status: responseStatus,
+        json: async () => ({ token: "new-token", user: session.user }),
+      };
+    },
+  });
+  vm.runInContext(
+    await readFile(
+      new URL("../extension/background.js", import.meta.url),
+      "utf8",
+    ),
+    context,
+  );
+  const sender = { url: "chrome-extension://test/popup.html" };
+  await assert.rejects(context.handle({ type: "poll" }, sender), /unavailable/);
+  assert.deepEqual(storage.pair, pair, "502 must not discard a pending login");
+  assert.deepEqual(storage.session, session);
+  responseStatus = 401;
+  await assert.rejects(
+    context.handle({ type: "poll" }, sender),
+    /login expired/,
+  );
+  assert.equal(storage.pair, undefined);
+  assert.deepEqual(
+    storage.session,
+    session,
+    "pair failure is not session failure",
+  );
+
+  storage.pair = pair;
+  const unlock = { type: "unlock", site: "x", minutes: 5, reason: "Reply" };
+  responseStatus = 502;
+  await assert.rejects(context.handle(unlock, sender), /unavailable/);
+  assert.deepEqual(storage.session, session, "502 must not discard a session");
+  responseStatus = 401;
+  await assert.rejects(context.handle(unlock, sender), /reconnect Telegram/);
+  assert.equal(storage.session, undefined);
+  assert.deepEqual(
+    storage.pair,
+    pair,
+    "session failure preserves reconnect in progress",
+  );
+  assert.deepEqual(storage.leases, {}, "rejected unlock must stay locked");
+  assert.equal(
+    (await context.handle({ type: "state" }, sender)).user,
+    undefined,
+  );
+
+  responseStatus = 200;
+  await context.handle({ type: "poll" }, sender);
+  assert.equal(storage.session.token, "new-token");
+  assert.equal(storage.pair, undefined);
+  assert.equal(requests.at(-1).authorization, "Bearer pair-secret");
+});

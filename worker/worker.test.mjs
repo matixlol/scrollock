@@ -194,7 +194,19 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
     .digest("hex");
   const callback = `/api/telegram-auth?pair=${pairing.id}&${new URLSearchParams({ ...fields, hash })}`;
   assert.equal((await request(callback)).status, 401, "cookie is required");
-  assert.equal((await request(callback, { headers: { cookie } })).status, 200);
+  const authorized = await request(callback, { headers: { cookie } });
+  assert.equal(authorized.status, 200);
+  assert.match(authorized.headers.get("content-type"), /text\/html/);
+  const page = await authorized.text();
+  assert.match(page, /<h1 id="title">Telegram authorized<\/h1>/);
+  assert.match(
+    page,
+    /Return to the Scrollock extension to finish connecting\./,
+  );
+  assert.ok(
+    !page.includes(pairing.secret),
+    "confirmation must not expose credentials",
+  );
   const session = await (
     await request(`/api/pair/${pairing.id}`, {
       headers: { authorization: `Bearer ${pairing.secret}` },

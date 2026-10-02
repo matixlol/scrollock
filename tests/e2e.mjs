@@ -187,6 +187,7 @@ try {
     channel: "chromium",
     headless: true,
     hasTouch: true,
+    deviceScaleFactor: 2,
     args: [
       `--disable-extensions-except=${extension}`,
       `--load-extension=${extension}`,
@@ -379,16 +380,86 @@ try {
   await checkAppearance(login, "body", "login");
   await login.screenshot({ path: join(artifacts, "scrollock-mock-login.png") });
   await login.getByRole("button", { name: "Authorize fixture user" }).click();
-  await popup.locator("#connect").click();
+  await login.getByRole("heading", { name: "Telegram authorized" }).waitFor();
+  assert.equal(await login.title(), "Telegram authorized · Scrollock");
+  assert.equal(
+    await login.locator(".card > p").first().textContent(),
+    "Return to the Scrollock extension to finish connecting.",
+  );
+  for (const width of [320, 390, 1280]) {
+    await login.setViewportSize({ width, height: 740 });
+    assert.equal(
+      await login.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `authorized page fits ${width}px without horizontal overflow`,
+    );
+  }
+  await login.setViewportSize({ width: 390, height: 740 });
+  await checkAppearance(login, "body", "scrollock-authorized");
   await eventually(
     () =>
       popup
         .locator("#identity")
         .textContent()
         .then((t) => t.includes("Fixture User")),
-    "Telegram pairing",
+    "Telegram pairing completes without a second click",
   );
   await checkTouchLayout(popup, "connected");
+
+  // Reconnect with an invalid saved token and an existing user. The old UI
+  // falsely claimed to be connected and never collected the replacement token.
+  await worker.evaluate(async () => {
+    const { session } = await chrome.storage.local.get("session");
+    session.token = "expired-session";
+    await chrome.storage.local.set({ session });
+  });
+  const reconnectPromise = context.waitForEvent("page");
+  await popup.getByRole("button", { name: "Reconnect", exact: true }).click();
+  const reconnect = await reconnectPromise;
+  await reconnect.waitForLoadState();
+  await eventually(
+    () =>
+      popup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Telegram login pending"),
+    "reconnect shows pending, not the stale connected identity",
+  );
+  assert.equal(await popup.locator("#connect").textContent(), "Check login");
+  assert.equal(
+    await popup.locator("#connection-copy").textContent(),
+    "Finish login, then return here.",
+  );
+  await popup.screenshot({
+    path: join(artifacts, "scrollock-reconnect-pending.png"),
+    fullPage: true,
+  });
+  await popup.goto("about:blank");
+  await reconnect
+    .getByRole("button", { name: "Authorize fixture user" })
+    .click();
+  await popup.goto(extensionOrigin + "/popup.html");
+  await eventually(
+    () =>
+      popup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Connected as Fixture User"),
+    "reopening the popup collects the new Telegram session automatically",
+  );
+  assert.equal(
+    await worker.evaluate(async () => {
+      const { session, pair } = await chrome.storage.local.get([
+        "session",
+        "pair",
+      ]);
+      return !!session.token && session.token !== "expired-session" && !pair;
+    }),
+    true,
+    "reconnect replaces the rejected token and consumes the pairing",
+  );
 
   // Popup validation must never create a lease. The form is intentionally kept
   // open and retains user input while the one-second state refresh runs.

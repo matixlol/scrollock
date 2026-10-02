@@ -48,12 +48,17 @@ async function request(path, body, token) {
     result = {};
   }
   if (!response.ok)
-    throw new Error(
-      response.status === 401
-        ? "Please reconnect Telegram."
-        : response.status >= 500
-          ? "Telegram reporting unavailable. Feeds stay locked. Try again."
-          : result.error || "Reporting unavailable. Feeds stay locked.",
+    throw Object.assign(
+      new Error(
+        response.status === 401
+          ? path.startsWith("/api/pair/")
+            ? "Telegram login expired. Connect again in the extension."
+            : "Please reconnect Telegram."
+          : response.status >= 500
+            ? "Telegram reporting unavailable. Feeds stay locked. Try again."
+            : result.error || "Reporting unavailable. Feeds stay locked.",
+      ),
+      { status: response.status },
     );
   return result;
 }
@@ -114,7 +119,7 @@ async function handle(message, sender) {
         current.pair.secret,
       );
     } catch (error) {
-      await api.storage.local.remove("pair");
+      if (error.status === 401) await api.storage.local.remove("pair");
       throw error;
     }
     if (result.token) {
@@ -139,11 +144,17 @@ async function handle(message, sender) {
       message.reason.trim().length > 280
     )
       throw new Error("Enter a brief reason (up to 280 characters).");
-    const lease = await request(
-      "/api/unlock",
-      { site, minutes: message.minutes, reason: message.reason },
-      current.session.token,
-    );
+    let lease;
+    try {
+      lease = await request(
+        "/api/unlock",
+        { site, minutes: message.minutes, reason: message.reason },
+        current.session.token,
+      );
+    } catch (error) {
+      if (error.status === 401) await api.storage.local.remove("session");
+      throw error;
+    }
     current.leases[site] = lease;
     await api.storage.local.set({ leases: current.leases });
     await api.alarms.create("expire-" + site, { when: lease.expiresAt });
