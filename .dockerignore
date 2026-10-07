@@ -3,3 +3,4 @@
 !server/server.mjs
 !server/index.mjs
 !server/package.json
+!server/*-page.mjs

@@ -1,5 +1,11 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 const origin = new URL(process.env.API_ORIGIN || "http://localhost:8787");
+const buildNumber = process.env.EXTENSION_BUILD_NUMBER;
+if (
+  buildNumber !== undefined &&
+  (!/^[1-9][0-9]{0,4}$/.test(buildNumber) || Number(buildNumber) > 65535)
+)
+  throw new Error("EXTENSION_BUILD_NUMBER must be an integer from 1 to 65535");
 if (
   origin.protocol !== "https:" &&
   !(
@@ -13,6 +19,8 @@ for (const target of ["chrome", "safari"]) {
   await mkdir(dir, { recursive: true });
   await cp("extension", dir, { recursive: true });
   const manifest = JSON.parse(await readFile("extension/manifest.json"));
+  if (buildNumber !== undefined)
+    manifest.version = `${manifest.version}.${buildNumber}`;
   manifest.host_permissions = [origin.origin + "/*"];
   if (target === "chrome") {
     manifest.key = (await readFile("extension/chrome-key.txt", "utf8")).trim();

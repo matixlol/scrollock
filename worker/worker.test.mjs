@@ -56,6 +56,24 @@ function fixture(storage = new MemoryStorage()) {
   };
 }
 
+test("Worker downloads are public and do not bypass session checks", async () => {
+  const value = fixture();
+  const response = await value.request("/downloads");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const page = await response.text();
+  assert.match(
+    page,
+    /https:\/\/github.com\/matixlol\/scrollock\/releases\/latest\/download\/scrollock-chrome.zip/,
+  );
+  assert.match(page, /same folder you originally loaded/);
+  assert.match(page, /Do not remove the extension/);
+  assert.equal(
+    (await value.request("/api/unlock", { method: "POST" })).status,
+    401,
+  );
+});
+
 test("Safari installation origins can pair when enabled, without bypassing authentication", async () => {
   const value = fixture();
   const safari = "safari-web-extension://508d8d32-17ee-45b2-9c6b-6077d09412f9";
@@ -194,7 +212,19 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
     .digest("hex");
   const callback = `/api/telegram-auth?pair=${pairing.id}&${new URLSearchParams({ ...fields, hash })}`;
   assert.equal((await request(callback)).status, 401, "cookie is required");
-  assert.equal((await request(callback, { headers: { cookie } })).status, 200);
+  const authorized = await request(callback, { headers: { cookie } });
+  assert.equal(authorized.status, 200);
+  assert.match(authorized.headers.get("content-type"), /text\/html/);
+  const page = await authorized.text();
+  assert.match(page, /<h1 id="title">Telegram authorized<\/h1>/);
+  assert.match(
+    page,
+    /Return to the Scrollock extension to finish connecting\./,
+  );
+  assert.ok(
+    !page.includes(pairing.secret),
+    "confirmation must not expose credentials",
+  );
   const session = await (
     await request(`/api/pair/${pairing.id}`, {
       headers: { authorization: `Bearer ${pairing.secret}` },

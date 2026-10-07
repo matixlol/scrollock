@@ -7,6 +7,8 @@ import {
 } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { authorizedPage } from "./authorized-page.mjs";
+import { downloadsPage } from "./downloads-page.mjs";
 
 const json = (res, status, value, headers = {}) => {
   const body = JSON.stringify(value);
@@ -234,6 +236,10 @@ export async function createServer(options = {}) {
     rates.set(ip, rate);
     if (req.method === "GET" && url.pathname === "/health")
       return json(res, 200, { ok: true }, cors);
+    if (req.method === "GET" && url.pathname === "/downloads") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(downloadsPage);
+    }
     if (req.method === "POST" && url.pathname === "/api/pair") {
       const pairId = id(18),
         secret = id();
@@ -360,7 +366,7 @@ export async function createServer(options = {}) {
       if (!(await authorizePair(pairId, user)))
         return json(res, 404, { error: "pairing not found" });
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      return res.end("<p>Authorized. Return to the extension.</p>");
+      return res.end(authorizedPage);
     }
     if (
       cfg.mock &&

@@ -10,7 +10,7 @@
           : null;
   };
   const blockedRoute = (site, path) => {
-    if (site === "x") return /^\/(?:home|explore|search)?\/?$/.test(path);
+    if (site === "x") return /^\/(?:home|explore)?\/?$/.test(path);
     if (site === "instagram")
       return /^\/(?:explore(?:\/.*)?|reels?(?:\/.*)?)?$/.test(path);
     if (site === "youtube")

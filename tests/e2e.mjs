@@ -26,7 +26,7 @@ const server = await createServer({
 await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 cfg.origin = `http://127.0.0.1:${server.address().port}`;
 execFileSync(process.execPath, ["scripts/build.mjs"], {
-  env: { ...process.env, API_ORIGIN: cfg.origin },
+  env: { ...process.env, API_ORIGIN: cfg.origin, EXTENSION_BUILD_NUMBER: "41" },
   stdio: "inherit",
 });
 let context;
@@ -187,6 +187,7 @@ try {
     channel: "chromium",
     headless: true,
     hasTouch: true,
+    deviceScaleFactor: 2,
     args: [
       `--disable-extensions-except=${extension}`,
       `--load-extension=${extension}`,
@@ -222,6 +223,31 @@ try {
   );
   await checkTouchLayout(popup, "disconnected");
   assert.equal(await popup.locator("header, nav, footer, img, svg").count(), 0);
+  assert.match(await popup.locator("#version").textContent(), /\.41$/);
+  const downloadsPromise = context.waitForEvent("page");
+  await popup.getByRole("link", { name: "Download / update" }).click();
+  const downloads = await downloadsPromise;
+  await downloads.waitForLoadState();
+  assert.equal(downloads.url(), cfg.origin + "/downloads");
+  assert.equal(
+    await downloads
+      .getByRole("link", { name: "Download for Chrome", exact: true })
+      .getAttribute("href"),
+    "https://github.com/matixlol/scrollock/releases/latest/download/scrollock-chrome.zip",
+  );
+  for (const width of [320, 390, 1280]) {
+    await downloads.setViewportSize({ width, height: 900 });
+    assert.equal(
+      await downloads.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `download instructions fit ${width}px without horizontal overflow`,
+    );
+  }
+  await downloads.setViewportSize({ width: 390, height: 900 });
+  await checkAppearance(downloads, "body", "scrollock-downloads");
+  await downloads.close();
   await checkAppearance(popup, "html", "popup");
   await popup
     .locator("body")
@@ -243,7 +269,7 @@ try {
       const host = new URL(route.request().url()).hostname;
       const feed = "<h1>Fixture feed</h1><p>A stream of posts</p>";
       const content = host.includes("x.com")
-        ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main>`
+        ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main><aside data-testid="sidebarColumn"><div aria-label="Trending"><div><div><form role="search"><input aria-label="Sidebar search" /></form></div><div id="news"><h2 role="heading">Today's News</h2></div><section role="region" id="trending">What's happening</section></div></div></aside>`
         : host.includes("instagram")
           ? `<main><div><article id="feed">${feed}</article></div></main>`
           : host === "www.youtube.com"
@@ -269,11 +295,25 @@ try {
       site + " blocked",
     );
     assert.equal(await page.locator("#feed").isVisible(), false);
+    if (site === "x") {
+      assert.equal(await page.locator("#news").isVisible(), false);
+      assert.equal(await page.locator("#trending").isVisible(), false);
+      await page
+        .getByRole("textbox", { name: "Sidebar search" })
+        .fill("search stays usable");
+    }
     await page.getByRole("button", { name: "Compose" }).click();
     assert.equal(await page.getByText("Clicked", { exact: true }).count(), 1);
     if (site !== "instagram") {
-      await page.getByRole("textbox", { name: "Search" }).fill("a friend");
-      assert.equal(await page.getByRole("textbox").inputValue(), "a friend");
+      await page
+        .getByRole("textbox", { name: "Search", exact: true })
+        .fill("a friend");
+      assert.equal(
+        await page
+          .getByRole("textbox", { name: "Search", exact: true })
+          .inputValue(),
+        "a friend",
+      );
     }
     await page.getByRole("link", { name: "Messages" }).click();
     await eventually(
@@ -365,16 +405,86 @@ try {
   await checkAppearance(login, "body", "login");
   await login.screenshot({ path: join(artifacts, "scrollock-mock-login.png") });
   await login.getByRole("button", { name: "Authorize fixture user" }).click();
-  await popup.locator("#connect").click();
+  await login.getByRole("heading", { name: "Telegram authorized" }).waitFor();
+  assert.equal(await login.title(), "Telegram authorized · Scrollock");
+  assert.equal(
+    await login.locator(".card > p").first().textContent(),
+    "Return to the Scrollock extension to finish connecting.",
+  );
+  for (const width of [320, 390, 1280]) {
+    await login.setViewportSize({ width, height: 740 });
+    assert.equal(
+      await login.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `authorized page fits ${width}px without horizontal overflow`,
+    );
+  }
+  await login.setViewportSize({ width: 390, height: 740 });
+  await checkAppearance(login, "body", "scrollock-authorized");
   await eventually(
     () =>
       popup
         .locator("#identity")
         .textContent()
         .then((t) => t.includes("Fixture User")),
-    "Telegram pairing",
+    "Telegram pairing completes without a second click",
   );
   await checkTouchLayout(popup, "connected");
+
+  // Reconnect with an invalid saved token and an existing user. The old UI
+  // falsely claimed to be connected and never collected the replacement token.
+  await worker.evaluate(async () => {
+    const { session } = await chrome.storage.local.get("session");
+    session.token = "expired-session";
+    await chrome.storage.local.set({ session });
+  });
+  const reconnectPromise = context.waitForEvent("page");
+  await popup.getByRole("button", { name: "Reconnect", exact: true }).click();
+  const reconnect = await reconnectPromise;
+  await reconnect.waitForLoadState();
+  await eventually(
+    () =>
+      popup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Telegram login pending"),
+    "reconnect shows pending, not the stale connected identity",
+  );
+  assert.equal(await popup.locator("#connect").textContent(), "Check login");
+  assert.equal(
+    await popup.locator("#connection-copy").textContent(),
+    "Finish login, then return here.",
+  );
+  await popup.screenshot({
+    path: join(artifacts, "scrollock-reconnect-pending.png"),
+    fullPage: true,
+  });
+  await popup.goto("about:blank");
+  await reconnect
+    .getByRole("button", { name: "Authorize fixture user" })
+    .click();
+  await popup.goto(extensionOrigin + "/popup.html");
+  await eventually(
+    () =>
+      popup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Connected as Fixture User"),
+    "reopening the popup collects the new Telegram session automatically",
+  );
+  assert.equal(
+    await worker.evaluate(async () => {
+      const { session, pair } = await chrome.storage.local.get([
+        "session",
+        "pair",
+      ]);
+      return !!session.token && session.token !== "expired-session" && !pair;
+    }),
+    true,
+    "reconnect replaces the rejected token and consumes the pairing",
+  );
 
   // Popup validation must never create a lease. The form is intentionally kept
   // open and retains user input while the one-second state refresh runs.
@@ -448,6 +558,8 @@ try {
     "X unlock",
   );
   assert.equal(await pages.x.locator("#feed").isVisible(), true);
+  assert.equal(await pages.x.locator("#news").isVisible(), true);
+  assert.equal(await pages.x.locator("#trending").isVisible(), true);
   assert.equal(await pages.instagram.locator("#feed").isVisible(), false);
   await eventually(
     () =>
@@ -618,8 +730,45 @@ try {
     "SPA navigation and reload never issue activity requests",
   );
   assert.deepEqual(errors, []);
+  const storedBeforeUpdate = await worker.evaluate(() =>
+    chrome.storage.local.get(["session", "leases"]),
+  );
+  execFileSync(process.execPath, ["scripts/build.mjs"], {
+    env: {
+      ...process.env,
+      API_ORIGIN: cfg.origin,
+      EXTENSION_BUILD_NUMBER: "42",
+    },
+    stdio: "inherit",
+  });
+  const extensionsPage = await context.newPage();
+  await extensionsPage.goto("chrome://extensions");
+  await extensionsPage.locator("extensions-toolbar #devMode").click();
+  await extensionsPage.locator("extensions-item #dev-reload-button").click();
+  const updatedPopup = await context.newPage();
+  await updatedPopup.goto(extensionOrigin + "/popup.html");
+  await eventually(
+    () =>
+      updatedPopup
+        .locator("#identity")
+        .textContent()
+        .then((text) => text === "Connected as Fixture User"),
+    "updating and reloading keeps the Telegram connection",
+  );
+  assert.match(await updatedPopup.locator("#version").textContent(), /\.42$/);
+  assert.deepEqual(
+    await updatedPopup.evaluate(() =>
+      chrome.storage.local.get(["session", "leases"]),
+    ),
+    storedBeforeUpdate,
+    "same-folder updates preserve the saved login and leases",
+  );
+  await updatedPopup.screenshot({
+    path: join(artifacts, "scrollock-updated-popup.png"),
+    fullPage: true,
+  });
   console.log(
-    "PASS: real Chrome extension + mock Telegram: required unlock forms, validation, exact reports, login, isolation, SPA/reload privacy, cross-tab expiry, closed-popup expiry, manual lock, and bot failure.",
+    "PASS: real Chrome extension + mock Telegram: downloads, same-folder update preserves login/leases, required unlock forms, validation, exact reports, login, isolation, SPA/reload privacy, cross-tab expiry, closed-popup expiry, manual lock, and bot failure.",
   );
   console.log(
     "Expiry uses a 15-second server test lease; unit tests assert selected production durations from 1 to 60 minutes.",

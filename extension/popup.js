@@ -1,4 +1,4 @@
-/* global chrome, browser, ScrollockTimer */
+/* global chrome, browser, ScrollockTimer, SCROLLOCK_API */
 const api = globalThis.browser || chrome;
 const names = {
   x: "X / Twitter",
@@ -10,6 +10,9 @@ let state = {},
   selectedSite;
 const status = document.querySelector("#status");
 const form = document.querySelector("#unlock-form");
+document.querySelector("#version").textContent =
+  `Version ${api.runtime.getManifest().version}`;
+document.querySelector("#downloads").href = SCROLLOCK_API + "/downloads";
 ScrollockTimer(document.querySelector("#minutes"));
 async function send(type, site, fields = {}) {
   const result = await api.runtime.sendMessage({ type, site, ...fields });
@@ -18,18 +21,20 @@ async function send(type, site, fields = {}) {
   return result;
 }
 function render() {
-  document.querySelector("#identity").textContent = state.user
-    ? `Connected as ${state.user.name}`
-    : "Telegram not connected";
-  document.querySelector("#connection-copy").textContent = state.user
-    ? ""
-    : state.pairing
-      ? "Finish login, then return here."
+  document.querySelector("#identity").textContent = state.pairing
+    ? "Telegram login pending"
+    : state.user
+      ? `Connected as ${state.user.name}`
+      : "Telegram not connected";
+  document.querySelector("#connection-copy").textContent = state.pairing
+    ? "Finish login, then return here."
+    : state.user
+      ? ""
       : "Connect to unblock feeds.";
-  document.querySelector("#connect").textContent = state.user
-    ? "Reconnect"
-    : state.pairing
-      ? "Check login"
+  document.querySelector("#connect").textContent = state.pairing
+    ? "Check login"
+    : state.user
+      ? "Reconnect"
       : "Connect";
   for (const [site, name] of Object.entries(names)) {
     let row = document.getElementById(site);
@@ -76,6 +81,10 @@ function render() {
 }
 async function refresh() {
   state = await send("state");
+  if (state.pairing) {
+    await send("poll");
+    state = await send("state");
+  }
   render();
 }
 async function action(fn) {
@@ -136,5 +145,8 @@ refresh().catch((error) => {
   status.textContent = error.message;
 });
 setInterval(() => {
-  if (!busy) refresh().catch(() => {});
+  if (!busy)
+    refresh().catch((error) => {
+      status.textContent = error.message;
+    });
 }, 1000);
