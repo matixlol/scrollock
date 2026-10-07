@@ -25,7 +25,6 @@ for (const target of ["chrome", "safari"]) {
   if (target === "chrome") {
     manifest.key = (await readFile("extension/chrome-key.txt", "utf8")).trim();
   } else {
-    manifest.permissions.push("nativeMessaging");
     await rm(dir + "/chrome-key.txt");
   }
   await writeFile(

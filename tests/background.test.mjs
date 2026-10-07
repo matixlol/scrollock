@@ -3,12 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 
-test("Safari bridge syncs native auth, derives the site, and preserves website leases on native failure", async () => {
+test("Safari unblocks only the sender's site and expires website leases", async () => {
   const storage = { session: { token: "private-token" }, leases: {} };
-  const nativeCalls = [],
-    requests = [];
-  let fail = false,
-    onAlarm;
+  const requests = [];
+  let onAlarm;
   const lease = { id: "lease", site: "x", expiresAt: Date.now() + 60_000 };
   const api = {
     storage: {
@@ -20,13 +18,6 @@ test("Safari bridge syncs native auth, derives the site, and preserves website l
     runtime: {
       getURL: () => "safari-web-extension://test/",
       onMessage: { addListener() {} },
-      sendNativeMessage: async (host, message) => {
-        assert.equal(host, "ar.com.poronga.Scrollock");
-        nativeCalls.push(structuredClone(message));
-        return fail
-          ? { ok: false, error: "Not authorized" }
-          : { ok: true, selectedApps: 1 };
-      },
     },
     alarms: {
       create: async () => {},
@@ -71,61 +62,17 @@ test("Safari bridge syncs native auth, derives the site, and preserves website l
     minutes: 1,
     reason: fields.reason,
   });
-  assert.deepEqual(nativeCalls[0], {
-    type: "unlock",
-    site: "x",
-    expiresAt: lease.expiresAt,
-    apiOrigin: "https://api.example",
-    sessionToken: "private-token",
-  });
-  fail = true;
-  const result = await context.handle(fields, sender);
-  assert.match(result.warning, /Not authorized/);
   assert.deepEqual(storage.leases.x, lease);
   await context.handle({ type: "activity", category: "/private" }, sender);
-  assert.equal(requests.length, 2, "legacy activity causes no request");
+  assert.equal(requests.length, 1, "legacy activity causes no request");
   await assert.rejects(
-    context.handle({ type: "native-status" }, sender),
+    context.handle({ type: "pair" }, sender),
     /extension popup/,
   );
   storage.leases.x.expiresAt = Date.now() - 1;
   onAlarm();
   await vm.runInContext("queue", context);
-  assert.deepEqual(nativeCalls.at(-1), {
-    type: "lock",
-    site: "x",
-    apiOrigin: "https://api.example",
-    sessionToken: "private-token",
-  });
   assert.equal(storage.leases.x, undefined);
-});
-
-test("native project config installs actionable custom Screen Time shields", async () => {
-  const [config, action, appearance, app] = await Promise.all([
-    readFile(
-      new URL("../scripts/configure-native.py", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../native/ShieldActionExtension.swift", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../native/ShieldConfigurationExtension.swift", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../native/ViewController.swift", import.meta.url),
-      "utf8",
-    ),
-  ]);
-  assert.match(config, /Scrollock Shield Configuration/);
-  assert.match(config, /Scrollock Shield Action/);
-  assert.match(action, /requestUnlock/);
-  assert.match(action, /Opened from the iOS block screen/);
-  assert.match(appearance, /Unblock for 5 minutes/);
-  assert.match(app, /Temporary access/);
-  assert.match(app, /submitUnblock/);
 });
 
 test("authentication failures clear only rejected credentials; temporary pairing failures remain retryable", async () => {

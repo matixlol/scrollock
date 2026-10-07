@@ -17,7 +17,6 @@ ScrollockTimer(document.querySelector("#minutes"));
 async function send(type, site, fields = {}) {
   const result = await api.runtime.sendMessage({ type, site, ...fields });
   if (!result.ok) throw new Error(result.error);
-  if (result.warning) status.textContent = result.warning;
   return result;
 }
 function render() {
@@ -128,19 +127,6 @@ form.addEventListener("submit", (event) => {
     document.querySelector("#reason").value = "";
   });
 });
-if (api.runtime.getURL("").startsWith("safari-web-extension:")) {
-  send("native-status")
-    .then((result) => {
-      const note = document.querySelector("#native-status");
-      note.hidden = false;
-      note.textContent = result.authorized
-        ? "Screen Time connected. Manage selected apps in the iPhone app."
-        : "To block installed apps too, open the iPhone app and set up Screen Time.";
-    })
-    .catch((error) => {
-      status.textContent = error.message;
-    });
-}
 refresh().catch((error) => {
   status.textContent = error.message;
 });

@@ -67,25 +67,6 @@ async function state() {
   stored.leases ||= {};
   return stored;
 }
-async function native(message, session) {
-  if (!api.runtime.getURL("").startsWith("safari-web-extension:")) return {};
-  try {
-    const result = await api.runtime.sendNativeMessage(
-      "ar.com.poronga.Scrollock",
-      {
-        ...message,
-        apiOrigin: SCROLLOCK_API,
-        sessionToken: session?.token || "",
-      },
-    );
-    if (!result.ok) throw new Error(result.error);
-    return result;
-  } catch (error) {
-    return {
-      warning: `Screen Time: ${error.message}. Open the app to check native app controls.`,
-    };
-  }
-}
 async function handle(message, sender) {
   const current = await state();
   const tabSite =
@@ -106,8 +87,6 @@ async function handle(message, sender) {
   // Pairing, polling and manual locks remain restricted to extension pages.
   if (!trusted && message.type !== "unlock")
     throw new Error("Use the extension popup");
-  if (message.type === "native-status")
-    return native({ type: "status" }, current.session);
   if (message.type === "pair") {
     const pair = await request("/api/pair", {});
     await api.storage.local.set({ pair });
@@ -130,7 +109,6 @@ async function handle(message, sender) {
     if (result.token) {
       await api.storage.local.set({ session: result });
       await api.storage.local.remove("pair");
-      await native({ type: "status" }, result);
     }
     return {};
   }
@@ -164,23 +142,19 @@ async function handle(message, sender) {
     current.leases[site] = lease;
     await api.storage.local.set({ leases: current.leases });
     await api.alarms.create("expire-" + site, { when: lease.expiresAt });
-    return native(
-      { type: "unlock", site, expiresAt: lease.expiresAt },
-      current.session,
-    );
+    return {};
   }
   if (message.type === "lock") {
     const lease = current.leases[site];
     delete current.leases[site];
     await api.storage.local.set({ leases: current.leases });
-    const result = await native({ type: "lock", site }, current.session);
     if (lease)
       await request(
         "/api/lock",
         { unlockId: lease.id },
         current.session?.token,
       );
-    return result;
+    return {};
   }
   throw new Error("Unknown action");
 }
@@ -198,10 +172,8 @@ api.alarms.onAlarm.addListener(() => {
     .then(async () => {
       const current = await state();
       for (const site of sites)
-        if (current.leases[site]?.expiresAt <= Date.now()) {
+        if (current.leases[site]?.expiresAt <= Date.now())
           delete current.leases[site];
-          await native({ type: "lock", site }, current.session);
-        }
       await api.storage.local.set({ leases: current.leases });
     });
 });
