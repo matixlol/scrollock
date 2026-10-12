@@ -24,7 +24,7 @@ To update Chrome without losing your Telegram connection:
 - **X / Twitter:** blocks Home and Explore timelines plus sidebar news and trends. Search stays accessible.
 - **Instagram:** blocks Home, Explore, and Reels.
 - **YouTube:** blocks Home, feed pages (including subscriptions), Shorts, and supported recommendation containers beside videos.
-- Direct messages, profiles, normal post links, X search, and YouTube watch/search pages remain accessible; direct Reels/Shorts links remain blocked.
+- Direct messages, profiles, normal post links, individual Instagram Reel links, X search, and YouTube watch/search pages remain accessible; YouTube Shorts links remain blocked.
 - A break applies to that site across tabs in the same browser. Reloading a page or closing the popup does not reset the deadline. Repeated unlock requests reuse the active deadline; another break after expiry sends another report.
 - A Telegram unblock-intent report must succeed before an unlock is granted. Manual locking takes effect without sending another report.
 - Route changes are detected on single-page apps as well as full navigations. Only feed containers are hidden; the site's navigation and search controls remain usable. A pause notice sits inside the feed area, never over the whole page. Feed selectors may need updates when sites change their markup; unrecognized layouts are not replaced with a whole-page blocker.
@@ -153,7 +153,7 @@ Coverage includes signed login validation/replay, group membership rejection, pr
 ### Real-device release checklist
 
 - Test current signed-in desktop sites and mobile Safari sites, not just fixtures.
-- Confirm Home/Explore/Reels/Shorts/feed pages are blocked; direct messages and normal links are accessible.
+- Confirm Home/Explore/Reels/Shorts/feed pages are blocked; direct messages and Instagram post/individual Reel links (including shared links with query parameters) are accessible. Navigate from a blocked feed to a post and back, and confirm the post is restored and the feed relocks.
 - Complete real Telegram login as a member; reject a nonmember.
 - Unlock each site; confirm one real group intent report with its duration and reason, and no browsing-activity or lock reports.
 - Wait for the selected duration with popup closed, reload, switch tabs, background Safari, and resume after the deadline. Confirm the feed relocks.

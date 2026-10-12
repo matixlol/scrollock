@@ -12,7 +12,7 @@ test("feed routes block but direct links and messaging remain available", () => 
     ["x", "/home"],
     ["x", "/explore"],
     ["instagram", "/"],
-    ["instagram", "/reels/123"],
+    ["instagram", "/reels/"],
     ["youtube", "/"],
     ["youtube", "/shorts/abc"],
     ["youtube", "/feed/subscriptions"],
@@ -29,4 +29,37 @@ test("feed routes block but direct links and messaging remain available", () => 
     ["youtube", "/results"],
   ])
     assert.equal(blockedRoute(site, path), false, site + path);
+});
+test("Instagram post and reel permalinks stay accessible without unblocking feeds", () => {
+  const reportedLink = new URL(
+    "https://www.instagram.com/reel/DeXCHxZRPXu/?exln=MXNkZTY3b3M3NDFy",
+  );
+  assert.equal(blockedRoute("instagram", reportedLink.pathname), false);
+  for (const path of [
+    "/p/CxYz_123-AB",
+    "/p/CxYz_123-AB/",
+    "/reel/CxYz_123-AB",
+    "/reel/CxYz_123-AB/",
+    "/reels/CxYz_123-AB",
+    "/reels/CxYz_123-AB/",
+    "/reel/CxYz_123-AB/embed/",
+    "/reel/CxYz_123-AB/embed/captioned/",
+  ]) {
+    for (const query of ["", "?igsh=shared-link&utm_source=ig_web_copy_link"]) {
+      const url = new URL(path + query, "https://www.instagram.com");
+      assert.equal(blockedRoute("instagram", url.pathname), false, url.href);
+    }
+  }
+  for (const path of [
+    "/",
+    "/explore",
+    "/explore/",
+    "/explore/tags/music/",
+    "/reel",
+    "/reel/",
+    "/reels",
+    "/reels/",
+    "/reels/audio/123/",
+  ])
+    assert.equal(blockedRoute("instagram", path), true, path);
 });

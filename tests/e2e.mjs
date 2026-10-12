@@ -271,7 +271,7 @@ try {
       const content = host.includes("x.com")
         ? `<main data-testid="primaryColumn"><header><input aria-label="Search" /></header><section role="region" id="feed">${feed}</section></main><aside data-testid="sidebarColumn"><div aria-label="Trending"><div><div><form role="search"><input aria-label="Sidebar search" /></form></div><div id="news"><h2 role="heading">Today's News</h2></div><section role="region" id="trending">What's happening</section></div></div></aside>`
         : host.includes("instagram")
-          ? `<main><div><article id="feed">${feed}</article></div></main>`
+          ? `<main><div><div style="display:flex"><article id="feed">${feed}</article></div></div></main>`
           : host === "www.youtube.com"
             ? `<header><input aria-label="Search" /></header><ytd-browse id="feed">${feed}</ytd-browse>`
             : `<ytm-browse><header><input aria-label="Search" /></header><div class="rich-grid-renderer-contents" id="feed">${feed}</div></ytm-browse>`;
@@ -337,6 +337,50 @@ try {
     );
     assert.equal(await page.locator("#feed").isVisible(), false);
   }
+  // Post pages reuse Instagram's feed containers. They must be visible both on
+  // initial load from a shared link and after SPA navigation from a blocked feed.
+  const linkedPost = await context.newPage();
+  for (const path of [
+    "/p/CxYz_123-AB/?igsh=shared-link&img_index=2",
+    "/reel/DeXCHxZRPXu/?exln=MXNkZTY3b3M3NDFy",
+    "/reels/CxYz_123-AB/?utm_source=ig_web_copy_link",
+  ]) {
+    await linkedPost.goto("https://www.instagram.com" + path);
+    // Wait for the isolated content script's first render, even on allowed pages.
+    await linkedPost.evaluate(
+      () => new Promise((resolve) => setTimeout(resolve, 600)),
+    );
+    assert.equal(await linkedPost.locator("#feed").isVisible(), true, path);
+    assert.equal(await linkedPost.locator("#scrollock-gate").count(), 0, path);
+    assert.equal(
+      await linkedPost.locator("[data-scrollock-feed]").count(),
+      0,
+      path,
+    );
+    await linkedPost.goto("https://www.instagram.com/reels/");
+    await eventually(
+      () => linkedPost.locator("#scrollock-gate").isVisible(),
+      "Reels feed is blocked before opening a post",
+    );
+    await linkedPost.evaluate((path) => history.pushState({}, "", path), path);
+    await eventually(
+      () => linkedPost.locator("#feed").isVisible(),
+      "SPA restores linked post " + path,
+    );
+    assert.equal(await linkedPost.locator("#scrollock-gate").count(), 0);
+    assert.equal(await linkedPost.locator("[data-scrollock-feed]").count(), 0);
+    assert.equal(
+      await linkedPost.locator("html[data-scrollock-blocked]").count(),
+      0,
+    );
+    await linkedPost.goBack();
+    await eventually(
+      () => linkedPost.locator("#scrollock-gate").isVisible(),
+      "returning from a post relocks the Reels feed",
+    );
+    assert.equal(await linkedPost.locator("#feed").isVisible(), false);
+  }
+  await linkedPost.close();
   await pages.x.screenshot({
     path: join(artifacts, "scrollock-feed-paused.png"),
   });
@@ -653,9 +697,7 @@ try {
   );
   await pages.instagram.goto("https://www.instagram.com/direct/inbox/");
   assert.equal(await pages.instagram.locator("#feed").isVisible(), true);
-  await pages.instagram.evaluate(() =>
-    history.pushState({}, "", "/reels/xyz/"),
-  );
+  await pages.instagram.evaluate(() => history.pushState({}, "", "/reels/"));
   await eventually(
     () => pages.instagram.locator("html[data-scrollock-blocked]").count(),
     "SPA relock on reels",
