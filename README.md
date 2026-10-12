@@ -123,13 +123,17 @@ Apple offers a **Safari Web Extension Packager in App Store Connect** for the ex
 
 ### Upload to TestFlight from a Mac
 
-On a Mac where Xcode is signed into the Apple developer team and the Apple Distribution certificate is available in Keychain, run:
+On a Mac with the Apple Distribution certificate available in Keychain and either an App Store Connect API key or an Apple developer account in Xcode, run:
 
 ```sh
 npm run safari:deploy
 ```
 
 This runs the checks, makes a production build, regenerates the native Xcode project, signs both targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new.
+
+API-key authentication uses the existing local `~/.config/caloric/apple.json` when present. Set `APPLE_API_CREDENTIALS` to use another credential JSON file with `keyPath`, `keyID`, and `issuerID`, or set `ASC_KEY_PATH`, `ASC_KEY_ID`, and `ASC_ISSUER_ID` directly. Keep the credential JSON and `.p8` private key outside the repository. Without an API key, the script uses Xcode's saved Apple Account session.
+
+For local distribution signing, the script uses `~/.config/scrollock/ExportOptions.plist` when present; `SAFARI_EXPORT_OPTIONS` overrides that path. This plist must reference valid Scrollock app and extension profiles that include the local distribution certificate. Unlock its signing Keychain before deploying. Without a saved export plist, Xcode uses automatic distribution signing.
 
 The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacked extensions. Unzip it before using **Load unpacked**. Automatic signed Chrome installation and updates require a Chrome Web Store listing (or enterprise browser policy), which is intentionally outside this friends-only distribution.
 
