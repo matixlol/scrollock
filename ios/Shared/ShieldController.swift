@@ -73,6 +73,12 @@ struct ShieldController {
     for site in store.expiredSites(at: now) { endBreak(site) }
   }
 
+  /// The feed to use when a token can't be matched, if only one feed has apps.
+  var onlyConfiguredSite: Site? {
+    let configured = Site.allCases.filter { store.selectionData(for: $0) != nil }
+    return configured.count == 1 ? configured[0] : nil
+  }
+
   func site(for token: ApplicationToken) -> Site? {
     Site.allCases.first { selection(for: $0).applicationTokens.contains(token) }
   }

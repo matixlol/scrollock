@@ -42,4 +42,22 @@ public final class SharedStore: @unchecked Sendable {
     get { defaults.string(forKey: "requestedBreak").flatMap(Site.init(rawValue:)) }
     set { defaults.set(newValue?.rawValue, forKey: "requestedBreak") }
   }
+
+  /// When the block screen's "Take a break…" was tapped. Set even when the feed
+  /// is unknown, so the app can ask which feed instead.
+  public var breakRequestedAt: Date? {
+    get { defaults.object(forKey: "breakRequestedAt") as? Date }
+    set { defaults.set(newValue, forKey: "breakRequestedAt") }
+  }
+
+  /// Takes a break request from the block screen if it's recent. Returns the
+  /// feed (nil when unknown) or nothing when no request is pending.
+  public func takeBreakRequest(now: Date = .now, within window: TimeInterval = 600) -> Site?? {
+    defer {
+      requestedBreak = nil
+      breakRequestedAt = nil
+    }
+    guard let at = breakRequestedAt, now.timeIntervalSince(at) < window else { return nil }
+    return .some(requestedBreak)
+  }
 }

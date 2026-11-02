@@ -137,3 +137,24 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(decoded.session?.user.name == "Ana")
   #expect(try JSONDecoder().decode(SessionRecord.self, from: Data(#"{"session":null,"updatedAt":5}"#.utf8)).session == nil)
 }
+
+@Test func blockScreenBreakRequestsAreTakenOnceAndExpire() {
+  let store = SharedStore(defaults: UserDefaults(suiteName: "scrollock-tests-\(UUID())")!)
+  let now = Date()
+  #expect(store.takeBreakRequest(now: now) == nil)
+
+  store.requestedBreak = .x
+  store.breakRequestedAt = now
+  #expect(store.takeBreakRequest(now: now) == .some(.x))
+  #expect(store.takeBreakRequest(now: now) == nil)
+
+  // Unknown feed: the app should ask which one.
+  store.breakRequestedAt = now
+  #expect(store.takeBreakRequest(now: now) == .some(nil))
+
+  // Stale requests are dropped.
+  store.requestedBreak = .youtube
+  store.breakRequestedAt = now.addingTimeInterval(-3600)
+  #expect(store.takeBreakRequest(now: now) == nil)
+  #expect(store.requestedBreak == nil)
+}

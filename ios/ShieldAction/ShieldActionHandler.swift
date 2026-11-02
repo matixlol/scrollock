@@ -29,13 +29,18 @@ final class ShieldActionHandler: ShieldActionDelegate {
   }
 
   func respond(to action: ShieldAction, site: Site?, _ completion: @escaping (ShieldActionResponse) -> Void) {
-    guard action == .secondaryButtonPressed, let site else { return completion(.close) }
+    guard action == .secondaryButtonPressed else { return completion(.close) }
+    // Apps locked through a category arrive with their own token, which may not
+    // map to a feed. Fall back to the only configured feed, or let the app ask.
+    let site = site ?? controller.onlyConfiguredSite
     controller.store.requestedBreak = site
+    controller.store.breakRequestedAt = .now
     let content = UNMutableNotificationContent()
-    content.title = "Take a break from \(site.displayName)"
+    content.title = site.map { "Take a break from \($0.displayName)" } ?? "Take a break"
     content.body = "Tap to choose how long and why. Your group will see it."
-    content.userInfo = ["site": site.rawValue]
-    let request = UNNotificationRequest(identifier: "break.\(site.rawValue)", content: content, trigger: nil)
+    content.sound = .default
+    if let site { content.userInfo = ["site": site.rawValue] }
+    let request = UNNotificationRequest(identifier: "break", content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request) { _ in completion(.close) }
   }
 }

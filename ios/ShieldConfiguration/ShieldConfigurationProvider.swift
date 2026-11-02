@@ -33,7 +33,7 @@ final class ShieldConfigurationProvider: ShieldConfigurationDataSource {
       icon: UIImage(named: "ShieldIcon"),
       title: .init(text: "\(title) is locked", color: .label),
       subtitle: .init(
-        text: "Scrollock is keeping this feed closed. To take a break, choose how long and tell your group why.",
+        text: "Scrollock is keeping this feed closed. Tap \"Take a break…\" to get a notification where you choose how long and tell your group why.",
         color: .secondaryLabel),
       primaryButtonLabel: .init(text: "Close", color: .white),
       primaryButtonBackgroundColor: .systemBlue,

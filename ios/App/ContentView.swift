@@ -24,7 +24,15 @@ struct ContentView: View {
             }
           } header: {
             Text("Locked apps")
+            if model.notificationsDenied {
+              Button("Turn on notifications") {
+                UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!)
+              }
+            }
           } footer: {
+            if model.notificationsDenied {
+              Text("Notifications are off, so \"Take a break…\" on the block screen can't reach Scrollock. You can still take a break from here.")
+            }
             Text("Choose the apps to lock for each feed. A break unlocks them only for the time you choose, and your group sees your name, the feed, the duration and your reason.")
           }
         }
@@ -43,6 +51,11 @@ struct ContentView: View {
       .sheet(item: $picking) { site in
         AppPicker(site: site, selection: model.selections[site] ?? FamilyActivitySelection()) {
           model.setSelection($0, for: site)
+        }
+      }
+      .confirmationDialog("Take a break from…", isPresented: $model.choosingBreakSite, titleVisibility: .visible) {
+        ForEach(Site.allCases.filter { model.selectedCount(for: $0) > 0 && model.activeLease(for: $0) == nil }) { site in
+          Button(site.displayName) { model.breakSite = site }
         }
       }
       .sheet(item: $model.breakSite) { site in

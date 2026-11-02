@@ -12,6 +12,8 @@ final class AppModel {
   private(set) var leases: [Site: Lease] = [:]
   private(set) var selections: [Site: FamilyActivitySelection] = [:]
   var breakSite: Site?
+  var choosingBreakSite = false
+  private(set) var notificationsDenied = false
   var error: String?
 
   @ObservationIgnored let shields = ShieldController()
@@ -50,14 +52,25 @@ final class AppModel {
     selections = Dictionary(uniqueKeysWithValues: Site.allCases.map { ($0, shields.selection(for: $0)) })
     leases = Dictionary(uniqueKeysWithValues: Site.allCases.compactMap { site in shields.store.lease(for: site).map { (site, $0) } })
     scheduleExpiryRefresh()
-    if let site = shields.store.requestedBreak { requestBreak(site) }
+    if let request = shields.store.takeBreakRequest() { requestBreak(request) }
+    Task { await checkNotifications() }
     if pairing != nil { pollPairing() }
   }
 
+  /// Opens the break form, or asks which feed when the block screen couldn't tell.
   func requestBreak(_ site: Site?) {
     shields.store.requestedBreak = nil
-    guard let site else { return }
-    breakSite = site
+    shields.store.breakRequestedAt = nil
+    if let site { breakSite = site } else { choosingBreakSite = true }
+  }
+
+  /// "Take a break…" on the block screen only works through a notification.
+  func checkNotifications() async {
+    let center = UNUserNotificationCenter.current()
+    if isAuthorized, await center.notificationSettings().authorizationStatus == .notDetermined {
+      _ = try? await center.requestAuthorization(options: [.alert, .sound])
+    }
+    notificationsDenied = await center.notificationSettings().authorizationStatus == .denied
   }
 
   func open(_ url: URL) {
@@ -70,8 +83,6 @@ final class AppModel {
   func requestAuthorization() async {
     do {
       try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
-      // The block screen's "Take a break…" button reaches the app through a notification.
-      _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
     } catch {
       self.error = "Screen Time access wasn't granted. You can allow it in Settings → Screen Time."
     }
