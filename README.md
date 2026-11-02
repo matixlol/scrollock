@@ -100,22 +100,36 @@ The production backend is a Worker at `scrollock.poronga.com.ar`, with a single 
 
 `GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions expire after seven days. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
 
-## iOS Safari installation
+## iOS app: Safari extension and Screen Time
 
-The build produces **`dist/safari`** with the same content/popup code. Target iOS 17+ with current Safari. The containing iPhone app provides extension setup instructions. Feed blocking and timed unblocks operate on websites in Safari. Chrome on iOS does not load this Chrome extension.
+The iPhone app (iOS 17+) contains the Safari Web Extension and also locks the **native X, Instagram, and YouTube apps** with Screen Time. Chrome on iOS does not load this Chrome extension.
 
-### With macOS + Xcode
+- **Choose apps per feed.** After allowing Screen Time access, pick the apps (or categories/websites) to lock for X, Instagram, and YouTube. Selections are opaque Screen Time tokens that stay on the device. Scrollock cannot see which apps they are, and no usage is monitored or reported.
+- **Block screen.** Opening a locked app shows Scrollock's shield. **Take a break…** posts a notification that opens the break form in the app. A shield cannot collect a reason itself, so this keeps the same "duration and reason" rule as the extension.
+- **Breaks.** A break uses the same `/api/unlock` endpoint and limits (1–60 minutes, reason of up to 280 characters). The group report must succeed before anything unlocks. A break for a feed that already has an active lease (for example from Safari) reuses that deadline and sends no second report. **Lock now** ends it early.
+- **Relocking.** Each feed has its own Managed Settings store and its own Device Activity schedule, so a break lifts only that feed's shields and never touches parental or other Screen Time limits. The Device Activity monitor relocks when the schedule ends. iOS may deliver that a few minutes late, so the app also relocks expired breaks whenever it opens. Device Activity requires intervals of at least 15 minutes, so shorter breaks backdate the interval start.
+- **Telegram.** The app pairs with Telegram on its own (same login page, opened in Safari) and keeps the session in the Keychain on this device only.
+
+The native code lives in `ios/`:
+
+- `ios/Scrollock.xcodeproj`: committed project with five targets (app, Safari extension, Device Activity monitor, shield configuration, shield action). It uses folder-synchronized groups, so adding a Swift file to a target folder needs no project edits.
+- `ios/ScrollockKit`: platform-independent Swift package (API client, lease and relock math, shared App Group state, Keychain), unit-tested with `swift test`.
+- `ios/Shared`: Screen Time shield controller shared by the app and extensions.
+
+The Safari extension target copies `dist/safari` into its bundle at build time, so run `npm run build` (or `build:production`) before building in Xcode.
+
+### Build and run with Xcode
 
 ```sh
-API_ORIGIN=https://your-scrollock-server.example npm run build
-SAFARI_BUNDLE_ID=ar.com.poronga.Scrollock npm run safari:package
+npm run build:production
+open ios/Scrollock.xcodeproj
 ```
 
-The script uses Apple's `safari-web-extension-packager` (previously named `safari-web-extension-converter`) to generate the native iOS containing app and extension target under `safari/`. It references `dist/safari`, so rebuild those resources after JS changes.
+Signing uses team `BQ7842UUHJ` with automatic signing. The app and the three Screen Time extensions carry the Family Controls entitlement and the `group.ar.com.poronga.Scrollock` App Group. Apple must approve Family Controls (Distribution) **per bundle ID** for TestFlight/App Store builds: `ar.com.poronga.Scrollock`, `.Monitor`, `.ShieldConfiguration`, and `.ShieldAction`. Do not strip the entitlement to work around signing failures.
 
-Open the generated project, select your Apple signing team for both targets (app and Safari extension), review manifest compatibility warnings, build, and run on your iPhone. Enable Scrollock in Settings → Apps → Safari → Extensions, grant access to all three websites, and allow its configured API host if Safari requests it. On a site, open Safari's extensions menu to access the popup. Authenticate, return to Safari, and check login to complete the connection.
+Enable Scrollock in Settings → Apps → Safari → Extensions, grant access to all three websites, and allow its configured API host if Safari requests it.
 
-For friends, distribute a signed build via TestFlight/App Store or your chosen valid Apple development distribution route. Apple Developer membership/signing and each installation's permissions are required; copying an unpacked folder onto an iPhone is not installation.
+To point a Debug build at the local mock server, build with `SCROLLOCK_API_ORIGIN=http://localhost:8787`.
 
 ### Without a Mac
 
@@ -129,17 +143,17 @@ On a Mac with the Apple Distribution certificate available in Keychain and eithe
 npm run safari:deploy
 ```
 
-This runs the checks, makes a production build, regenerates the native Xcode project, signs both targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new.
+This runs the checks (including the Swift package tests), makes a production build, signs all five targets using Xcode's automatic signing, assigns a UTC timestamp build number, and uploads it to App Store Connect/TestFlight. Set `BUILD_NUMBER` to override the generated build number or `APPLE_TEAM_ID` to override the default `BQ7842UUHJ` team. Each uploaded build number must be new.
 
 API-key authentication uses the existing local `~/.config/caloric/apple.json` when present. Set `APPLE_API_CREDENTIALS` to use another credential JSON file with `keyPath`, `keyID`, and `issuerID`, or set `ASC_KEY_PATH`, `ASC_KEY_ID`, and `ASC_ISSUER_ID` directly. Keep the credential JSON and `.p8` private key outside the repository. Without an API key, the script uses Xcode's saved Apple Account session.
 
-For local distribution signing, the script uses `~/.config/scrollock/ExportOptions.plist` when present; `SAFARI_EXPORT_OPTIONS` overrides that path. This plist must reference valid Scrollock app and extension profiles that include the local distribution certificate. Unlock its signing Keychain before deploying. Without a saved export plist, Xcode uses automatic distribution signing.
+For local distribution signing, the script uses `~/.config/scrollock/ExportOptions.plist` when present; `SAFARI_EXPORT_OPTIONS` overrides that path. This plist must reference valid profiles for all five Scrollock bundle IDs that include the local distribution certificate. Unlock its signing Keychain before deploying. Without a saved export plist, Xcode uses automatic distribution signing.
 
 The GitHub Release's Chrome ZIP is unsigned because Chrome does not sign unpacked extensions. Unzip it before using **Load unpacked**. Automatic signed Chrome installation and updates require a Chrome Web Store listing (or enterprise browser policy), which is intentionally outside this friends-only distribution.
 
-**Verification boundary:** the Safari resources and native Xcode project can be generated on macOS, but signing requires an Apple account in Xcode and Safari behavior must be checked on a real iPhone before TestFlight distribution. Playwright Chromium is not an iOS Safari extension runtime.
+**Verification boundary:** `npm run test:ios` runs the Swift package tests and compiles every target for the simulator. The simulator accepts Screen Time settings but does not enforce shields, so blocking, the block screen, and relocking must be checked on a real iPhone. Playwright Chromium is not an iOS Safari extension runtime.
 
-For local Safari-only simulator checks, build the `Scrollock` scheme with `-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`, install the resulting app with `xcrun simctl install booted`, and enable it in Safari's **Manage Extensions** menu. Grant website access before testing. Check the popup in Safari's half-height sheet: connection and all three feed controls should fit its width, buttons should be touch-sized, and the reporting explanation should be reachable by scrolling. Verify that YouTube search and bottom navigation still respond with the feed paused, and that unlock/expiry restores and hides the feed without replacing the page shell.
+For local Safari-only simulator checks, build the `Scrollock` scheme in `ios/Scrollock.xcodeproj` with `-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`, install the resulting app with `xcrun simctl install booted`, and enable it in Safari's **Manage Extensions** menu. Grant website access before testing. Check the popup in Safari's half-height sheet: connection and all three feed controls should fit its width, buttons should be touch-sized, and the reporting explanation should be reachable by scrolling. Verify that YouTube search and bottom navigation still respond with the feed paused, and that unlock/expiry restores and hides the feed without replacing the page shell.
 
 ## Tests
 
@@ -148,6 +162,7 @@ npm test
 npm run check
 npx playwright install chromium
 npm run test:e2e
+npm run test:ios   # macOS + Xcode only
 ```
 
 The end-to-end test launches a real Chromium browser with the actual unpacked Chrome extension. It does **not** replace extension messaging or storage with mocks. It runs a local mock Telegram server and serves synthetic social pages at matching origins via network interception, without visiting real accounts.
@@ -162,13 +177,15 @@ Coverage includes signed login validation/replay, group membership rejection, pr
 - Unlock each site; confirm one real group intent report with its duration and reason, and no browsing-activity or lock reports.
 - Wait for the selected duration with popup closed, reload, switch tabs, background Safari, and resume after the deadline. Confirm the feed relocks.
 - Disconnect the server or remove bot posting permission: a new unlock must fail closed.
+- On iPhone: choose apps for each feed and open one to see the Scrollock block screen. Tap **Take a break…**, open the notification, and take a 1-minute break. Confirm the group report arrives before the app unlocks, that a reporting failure leaves it locked with an error, and that it relocks after the deadline with Scrollock closed. Check that **Lock now** relocks immediately.
 - Verify browser permission prompts, Safari background execution, origin allowlisting, and your signed distribution build.
 
 ## Layout and credits
 
 - `extension/`: shared Web Extension, including blocking rules and unblock forms.
+- `ios/`: iPhone app, Safari extension host, and Screen Time blocking (app picker, block screen, timed relock).
 - `server/`: Telegram auth, fixed-group reporting, persistence, API tests.
-- `scripts/`: browser builds, syntax checks, Safari native packaging.
+- `scripts/`: browser builds, syntax checks, iOS checks and TestFlight upload.
 - `tests/`: rule tests and actual-extension end-to-end test.
 
 Original implementation inspired by the user-mentioned **Blockit** and **News Feed Eradicator/news-feed disablers**. No source code or assets from those products were copied or cloned. Telegram and social-platform names belong to their respective owners; this project is not affiliated with them.

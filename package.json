@@ -16,7 +16,7 @@
     "test:e2e": "node tests/e2e.mjs",
     "check": "node scripts/check.mjs && prettier --check .github extension scripts server tests worker package.json wrangler.jsonc README.md",
     "format": "prettier --write .github extension scripts server tests worker package.json wrangler.jsonc README.md",
-    "safari:package": "bash scripts/package-safari.sh",
+    "test:ios": "bash scripts/test-ios.sh",
     "safari:deploy": "bash scripts/deploy-safari.sh"
   },
   "devDependencies": {

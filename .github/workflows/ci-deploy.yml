@@ -53,6 +53,24 @@ jobs:
             dist/scrollock-safari.zip
           if-no-files-found: error
 
+  ios:
+    name: Test and build iOS app
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:production
+      - run: npm run test:ios
+
   deploy-worker:
     name: Deploy Cloudflare Worker
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

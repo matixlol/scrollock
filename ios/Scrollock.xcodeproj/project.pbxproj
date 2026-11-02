@@ -1,0 +1,879 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		18693D0CEB47E796F010C40D = {
+			isa = PBXBuildFile;
+			productRef = 2DB56F2CABB4FD4598D0A44A;
+		};
+		1CA71A3DF60D07BBDB606CA7 = {
+			isa = PBXBuildFile;
+			fileRef = 55FD8240E9732769B1058EB4;
+			settings = {
+				ATTRIBUTES = (
+					RemoveHeadersOnCopy,
+				);
+			};
+		};
+		2237BBA593E24E4539524DCB = {
+			isa = PBXBuildFile;
+			fileRef = CF002374A4DAEA8350BA62B6;
+			settings = {
+				ATTRIBUTES = (
+					RemoveHeadersOnCopy,
+				);
+			};
+		};
+		5569256B4A86CB672F0CEE82 = {
+			isa = PBXBuildFile;
+			productRef = 850D427344751E195ED60FBF;
+		};
+		64414434A8121288A27E0429 = {
+			isa = PBXBuildFile;
+			fileRef = DD0212E095DBE5DBF17B992A;
+			settings = {
+				ATTRIBUTES = (
+					RemoveHeadersOnCopy,
+				);
+			};
+		};
+		932756EB67D3CB1D463FF06E = {
+			isa = PBXBuildFile;
+			productRef = CE58CD7605DBB54BB8714B85;
+		};
+		A25EA320200B90D0B6BAAC39 = {
+			isa = PBXBuildFile;
+			productRef = 32D67F075C8AC73CE4841EB0;
+		};
+		C2F3234B790D0124DBF76427 = {
+			isa = PBXBuildFile;
+			fileRef = 05DD1ABE2803DBE140577EF5;
+			settings = {
+				ATTRIBUTES = (
+					RemoveHeadersOnCopy,
+				);
+			};
+		};
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		11D98B05A9CE4439AF729CC7 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = 360275C4A90D1D6381FA1598;
+			remoteInfo = Monitor;
+		};
+		1A824470FC36A40284CF20A8 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = B7910723DE75EA19ADB9455E;
+			remoteInfo = ShieldAction;
+		};
+		EEA291149664EE246F837C80 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = 6989F7B530401F6EC0886C32;
+			remoteInfo = ShieldConfiguration;
+		};
+		F9347D2B09CC19CA1477B5E9 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = 4143707A8167A93F4A380A97;
+			remoteInfo = "Scrollock Extension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		425893CE4AEDF359C5F0F0D7 = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2237BBA593E24E4539524DCB,
+				C2F3234B790D0124DBF76427,
+				1CA71A3DF60D07BBDB606CA7,
+				64414434A8121288A27E0429,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		05DD1ABE2803DBE140577EF5 = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = Monitor.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		1B4831D6CE6596D7E344DDAD = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = "Monitor-Info.plist";
+			sourceTree = "<group>";
+		};
+		55FD8240E9732769B1058EB4 = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = ShieldConfiguration.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		92B272961248C949C682A005 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = "SafariExtension-Info.plist";
+			sourceTree = "<group>";
+		};
+		A0FFE183A1A3A8B8A5768D28 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.entitlements;
+			path = ScreenTime.entitlements;
+			sourceTree = "<group>";
+		};
+		A2ECAF59B8D366FE0A9490E5 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = "ShieldAction-Info.plist";
+			sourceTree = "<group>";
+		};
+		B4F6FA40BA14F14D6241E007 = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.application;
+			includeInIndex = 0;
+			path = Scrollock.app;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		B69B9EDF44C7B22266ACE2ED = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = "App-Info.plist";
+			sourceTree = "<group>";
+		};
+		CF002374A4DAEA8350BA62B6 = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = "Scrollock Extension.appex";
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		DD0212E095DBE5DBF17B992A = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = ShieldAction.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FA8601B18CA4CC91816F2A2B = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = "ShieldConfiguration-Info.plist";
+			sourceTree = "<group>";
+		};
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		309CEB07FF3BD2636AEE3BC9 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Monitor;
+			sourceTree = "<group>";
+		};
+		549C2D4FC886688140B99F29 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		9C2F553521EFEC6D6692C168 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
+		AB3223794C9EDDD2B83540CB = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ShieldAction;
+			sourceTree = "<group>";
+		};
+		DB4511C9551686BB73FAB584 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SafariExtension;
+			sourceTree = "<group>";
+		};
+		F2B957CB1DDD3B1F79250D9A = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ShieldConfiguration;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		31FB2B0B43CAB5235C3E1567 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5569256B4A86CB672F0CEE82,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4121AF8D83C85D6778CA11B2 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				18693D0CEB47E796F010C40D,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A9E287DE32AB64148FDBD65B = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AD49D066B6D625AC91B7E051 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				932756EB67D3CB1D463FF06E,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E99462767A1090BF9B6BA674 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A25EA320200B90D0B6BAAC39,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5386A2EAF0036C0154CF9012 = {
+			isa = PBXGroup;
+			children = (
+				B69B9EDF44C7B22266ACE2ED,
+				92B272961248C949C682A005,
+				1B4831D6CE6596D7E344DDAD,
+				FA8601B18CA4CC91816F2A2B,
+				A2ECAF59B8D366FE0A9490E5,
+				A0FFE183A1A3A8B8A5768D28,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 = {
+			isa = PBXGroup;
+			children = (
+				B4F6FA40BA14F14D6241E007,
+				CF002374A4DAEA8350BA62B6,
+				05DD1ABE2803DBE140577EF5,
+				55FD8240E9732769B1058EB4,
+				DD0212E095DBE5DBF17B992A,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FAD58DE7366495DB4650CFEF = {
+			isa = PBXGroup;
+			children = (
+				9C2F553521EFEC6D6692C168,
+				549C2D4FC886688140B99F29,
+				DB4511C9551686BB73FAB584,
+				309CEB07FF3BD2636AEE3BC9,
+				F2B957CB1DDD3B1F79250D9A,
+				AB3223794C9EDDD2B83540CB,
+				5386A2EAF0036C0154CF9012,
+				86024CAD1E83101D97359D73,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		360275C4A90D1D6381FA1598 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6B2B6DCB124BD238732875F;
+			buildPhases = (
+				D16410492E3EFDADEAD429D2,
+				E99462767A1090BF9B6BA674,
+				38107CC8ABC458E082509199,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				309CEB07FF3BD2636AEE3BC9,
+				549C2D4FC886688140B99F29,
+			);
+			name = Monitor;
+			packageProductDependencies = (
+				32D67F075C8AC73CE4841EB0,
+			);
+			productName = Monitor;
+			productReference = 05DD1ABE2803DBE140577EF5;
+			productType = "com.apple.product-type.app-extension";
+		};
+		4143707A8167A93F4A380A97 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F4364033AE5C57CE284F32A3;
+			buildPhases = (
+				F1E0D24C6AA4B1BCB6235D27,
+				A9E287DE32AB64148FDBD65B,
+				09D62336092E8EED501F36C4,
+				9587E6A6960B83F594D84189,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				DB4511C9551686BB73FAB584,
+			);
+			name = "Scrollock Extension";
+			packageProductDependencies = (
+			);
+			productName = "Scrollock Extension";
+			productReference = CF002374A4DAEA8350BA62B6;
+			productType = "com.apple.product-type.app-extension";
+		};
+		6989F7B530401F6EC0886C32 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6FD8B74EC344383760766570;
+			buildPhases = (
+				C7E4225792745C55BDFD36DF,
+				AD49D066B6D625AC91B7E051,
+				E9C8670C65139F9D1FE30F26,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F2B957CB1DDD3B1F79250D9A,
+				549C2D4FC886688140B99F29,
+			);
+			name = ShieldConfiguration;
+			packageProductDependencies = (
+				CE58CD7605DBB54BB8714B85,
+			);
+			productName = ShieldConfiguration;
+			productReference = 55FD8240E9732769B1058EB4;
+			productType = "com.apple.product-type.app-extension";
+		};
+		B7910723DE75EA19ADB9455E = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 291CAAFD8C69E6AC7B6E1729;
+			buildPhases = (
+				F4B7AA0A2D7EF94E9ABFD6C9,
+				4121AF8D83C85D6778CA11B2,
+				8E239966815E7F8831001307,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AB3223794C9EDDD2B83540CB,
+				549C2D4FC886688140B99F29,
+			);
+			name = ShieldAction;
+			packageProductDependencies = (
+				2DB56F2CABB4FD4598D0A44A,
+			);
+			productName = ShieldAction;
+			productReference = DD0212E095DBE5DBF17B992A;
+			productType = "com.apple.product-type.app-extension";
+		};
+		C33FA4C20E98F334E31C17F4 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4EFF454020BB5C2E8FA2A39A;
+			buildPhases = (
+				CE986CA33C77D85F7FE58E97,
+				31FB2B0B43CAB5235C3E1567,
+				F0A1D5A2FB17A06256C537B7,
+				425893CE4AEDF359C5F0F0D7,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				10F6B3B2C149211A2B7C4D9E,
+				DE5A59AE42F98C51140C2409,
+				9B496C1279BC798AB6625414,
+				B14F082A9A52728050DBD814,
+			);
+			fileSystemSynchronizedGroups = (
+				9C2F553521EFEC6D6692C168,
+				549C2D4FC886688140B99F29,
+			);
+			name = Scrollock;
+			packageProductDependencies = (
+				850D427344751E195ED60FBF,
+			);
+			productName = Scrollock;
+			productReference = B4F6FA40BA14F14D6241E007;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = 61C1AD9FB388BBA94F1C2FFB;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = FAD58DE7366495DB4650CFEF;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A46A1BCE0B67C45BEC8F435B,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 86024CAD1E83101D97359D73;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C33FA4C20E98F334E31C17F4,
+				4143707A8167A93F4A380A97,
+				360275C4A90D1D6381FA1598,
+				6989F7B530401F6EC0886C32,
+				B7910723DE75EA19ADB9455E,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		09D62336092E8EED501F36C4 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		38107CC8ABC458E082509199 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E239966815E7F8831001307 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9C8670C65139F9D1FE30F26 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0A1D5A2FB17A06256C537B7 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9587E6A6960B83F594D84189 = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy web extension";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nsource=\"$SRCROOT/../dist/safari\"\nif [ ! -f \"$source/manifest.json\" ]; then\n  echo \"error: Build the web extension first: npm run build (or npm run build:production).\"\n  exit 1\nfi\n# The manifest references icons/ by path, so copy the tree as-is.\nrsync -a --exclude .DS_Store \"$source/\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C7E4225792745C55BDFD36DF = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE986CA33C77D85F7FE58E97 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D16410492E3EFDADEAD429D2 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1E0D24C6AA4B1BCB6235D27 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F4B7AA0A2D7EF94E9ABFD6C9 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		10F6B3B2C149211A2B7C4D9E = {
+			isa = PBXTargetDependency;
+			target = 4143707A8167A93F4A380A97;
+			targetProxy = F9347D2B09CC19CA1477B5E9;
+		};
+		9B496C1279BC798AB6625414 = {
+			isa = PBXTargetDependency;
+			target = 6989F7B530401F6EC0886C32;
+			targetProxy = EEA291149664EE246F837C80;
+		};
+		B14F082A9A52728050DBD814 = {
+			isa = PBXTargetDependency;
+			target = B7910723DE75EA19ADB9455E;
+			targetProxy = 1A824470FC36A40284CF20A8;
+		};
+		DE5A59AE42F98C51140C2409 = {
+			isa = PBXTargetDependency;
+			target = 360275C4A90D1D6381FA1598;
+			targetProxy = 11D98B05A9CE4439AF729CC7;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		03E09CFA6F3B6CA7574DF724 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BQ7842UUHJ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0CB871CC4EA99BFA34D0F560 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/ShieldConfiguration-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Block Screen";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.ShieldConfiguration;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		148FA4848DF860CE15BA79ED = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/ShieldAction-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Block Screen Actions";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.ShieldAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2E24B6958C2093966C8FAE6B = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				INFOPLIST_FILE = "Config/SafariExtension-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+			};
+			name = Release;
+		};
+		30D1CD1817BFC2B645DAB94B = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Scrollock;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCROLLOCK_API_ORIGIN = "https://scrollock.poronga.com.ar";
+			};
+			name = Release;
+		};
+		39D46946F20B20BA2DA9AA8E = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Scrollock;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCROLLOCK_API_ORIGIN = "https://scrollock.poronga.com.ar";
+			};
+			name = Debug;
+		};
+		4462CE53A2F865763E766BF2 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/ShieldAction-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Block Screen Actions";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.ShieldAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		64709C05FD3E8D2FCB9AC2AD = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BQ7842UUHJ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7CBA71F26B579E5DD0B71747 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/Monitor-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Relock";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Monitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		CEAD04F3DF401561A87B2434 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/Monitor-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Relock";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Monitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		E4D5188C506D2B89DA5AEC1F = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/ScreenTime.entitlements;
+				INFOPLIST_FILE = "Config/ShieldConfiguration-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Block Screen";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.ShieldConfiguration;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		F0B0DD89215D98924675AEC4 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				INFOPLIST_FILE = "Config/SafariExtension-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		291CAAFD8C69E6AC7B6E1729 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				148FA4848DF860CE15BA79ED,
+				4462CE53A2F865763E766BF2,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4EFF454020BB5C2E8FA2A39A = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				39D46946F20B20BA2DA9AA8E,
+				30D1CD1817BFC2B645DAB94B,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		61C1AD9FB388BBA94F1C2FFB = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64709C05FD3E8D2FCB9AC2AD,
+				03E09CFA6F3B6CA7574DF724,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6FD8B74EC344383760766570 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0CB871CC4EA99BFA34D0F560,
+				E4D5188C506D2B89DA5AEC1F,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A6B2B6DCB124BD238732875F = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CEAD04F3DF401561A87B2434,
+				7CBA71F26B579E5DD0B71747,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F4364033AE5C57CE284F32A3 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0B0DD89215D98924675AEC4,
+				2E24B6958C2093966C8FAE6B,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A46A1BCE0B67C45BEC8F435B = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ScrollockKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2DB56F2CABB4FD4598D0A44A = {
+			isa = XCSwiftPackageProductDependency;
+			package = A46A1BCE0B67C45BEC8F435B;
+			productName = ScrollockKit;
+		};
+		32D67F075C8AC73CE4841EB0 = {
+			isa = XCSwiftPackageProductDependency;
+			package = A46A1BCE0B67C45BEC8F435B;
+			productName = ScrollockKit;
+		};
+		850D427344751E195ED60FBF = {
+			isa = XCSwiftPackageProductDependency;
+			package = A46A1BCE0B67C45BEC8F435B;
+			productName = ScrollockKit;
+		};
+		CE58CD7605DBB54BB8714B85 = {
+			isa = XCSwiftPackageProductDependency;
+			package = A46A1BCE0B67C45BEC8F435B;
+			productName = ScrollockKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595;
+}

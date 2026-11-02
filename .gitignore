@@ -8,3 +8,6 @@ server/data/
 .wrangler/
 .amp/
 safari/
+ios/ScrollockKit/.build/
+ios/ScrollockKit/.swiftpm/
+xcuserdata/

@@ -49,9 +49,7 @@ npm test
 npm run check
 npm run build:production
 
-# This project is generated from dist/safari; do not preserve local edits in it.
-rm -rf safari
-SAFARI_BUNDLE_ID=ar.com.poronga.Scrollock npm run safari:package
+swift test --package-path ios/ScrollockKit
 
 cat > "$ARCHIVE_DIR/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +75,7 @@ if [[ ! -f "$EXPORT_OPTIONS" ]]; then
   EXPORT_OPTIONS="$ARCHIVE_DIR/ExportOptions.plist"
 fi
 xcodebuild \
-  -project safari/Scrollock/Scrollock.xcodeproj \
+  -project ios/Scrollock.xcodeproj \
   -scheme Scrollock \
   -configuration Release \
   -destination "generic/platform=iOS" \
