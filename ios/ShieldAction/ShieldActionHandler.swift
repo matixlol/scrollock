@@ -42,6 +42,8 @@ final class ShieldActionHandler: ShieldActionDelegate {
     content.title = site.map { "Take a break from \($0.displayName)" } ?? "Take a break"
     content.body = "Tap to choose how long and why. Your group will see it."
     content.sound = .default
+    // Delivered through Focus once the Time Sensitive entitlement is granted.
+    content.interruptionLevel = .timeSensitive
     if let site { content.userInfo = ["site": site.rawValue] }
     let request = UNNotificationRequest(identifier: "break", content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request) { _ in completion(.close) }

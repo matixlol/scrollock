@@ -9,6 +9,8 @@ struct ContentView: View {
   var body: some View {
     NavigationStack {
       Form {
+        SetupSection(model: model)
+
         if !model.isAuthorized {
           Section {
             Button("Allow Screen Time access") { Task { await model.requestAuthorization() } }
@@ -24,15 +26,7 @@ struct ContentView: View {
             }
           } header: {
             Text("Locked apps")
-            if model.notificationsDenied {
-              Button("Turn on notifications") {
-                UIApplication.shared.open(URL(string: UIApplication.openNotificationSettingsURLString)!)
-              }
-            }
           } footer: {
-            if model.notificationsDenied {
-              Text("Notifications are off, so \"Take a break…\" on the block screen can't reach Scrollock. You can still take a break from here.")
-            }
             Text("Choose the apps to lock for each feed. A break unlocks them only for the time you choose, and your group sees your name, the feed, the duration and your reason.")
           }
         }

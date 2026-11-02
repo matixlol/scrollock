@@ -13,7 +13,9 @@ final class AppModel {
   private(set) var selections: [Site: FamilyActivitySelection] = [:]
   var breakSite: Site?
   var choosingBreakSite = false
-  private(set) var notificationsDenied = false
+  private(set) var notificationsAllowed = false
+  /// Time Sensitive notifications pass through Focus unless the user turned that off.
+  private(set) var notificationsBypassFocus = false
   var error: String?
 
   @ObservationIgnored let shields = ShieldController()
@@ -70,7 +72,9 @@ final class AppModel {
     if isAuthorized, await center.notificationSettings().authorizationStatus == .notDetermined {
       _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
-    notificationsDenied = await center.notificationSettings().authorizationStatus == .denied
+    let settings = await center.notificationSettings()
+    notificationsAllowed = [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus)
+    notificationsBypassFocus = notificationsAllowed && settings.timeSensitiveSetting == .enabled
   }
 
   func open(_ url: URL) {
