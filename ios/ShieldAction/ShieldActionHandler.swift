@@ -33,7 +33,7 @@ final class ShieldActionHandler: ShieldActionDelegate {
     guard action == .secondaryButtonPressed else { return completion(.close) }
     // Apps locked through a category arrive with their own token, which may not
     // map to a feed. Fall back to the only configured feed, or let the app ask.
-    let site = site ?? controller.onlyConfiguredSite
+    let site = site ?? controller.store.recentShieldShown() ?? controller.onlyConfiguredSite
     Logger(subsystem: "ar.com.poronga.Scrollock", category: "shield")
       .notice("Take a break tapped; feed \(site?.rawValue ?? "unknown", privacy: .public)")
     controller.store.requestedBreak = site

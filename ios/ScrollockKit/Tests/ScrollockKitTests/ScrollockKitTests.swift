@@ -158,3 +158,12 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(store.takeBreakRequest(now: now) == nil)
   #expect(store.requestedBreak == nil)
 }
+
+@Test func recentBlockScreenFeedIsRemembered() {
+  let store = SharedStore(defaults: UserDefaults(suiteName: "scrollock-tests-\(UUID())")!)
+  let now = Date()
+  #expect(store.recentShieldShown(now: now) == nil)
+  store.noteShieldShown(.instagram, at: now)
+  #expect(store.recentShieldShown(now: now.addingTimeInterval(5)) == .instagram)
+  #expect(store.recentShieldShown(now: now.addingTimeInterval(3600)) == nil)
+}

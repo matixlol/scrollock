@@ -27,6 +27,7 @@ final class ShieldConfigurationProvider: ShieldConfigurationDataSource {
   }
 
   func configuration(for site: Site?, name: String?) -> ShieldConfiguration {
+    if let site { controller.store.noteShieldShown(site) }
     let title = name ?? site?.displayName ?? "This app"
     return ShieldConfiguration(
       backgroundBlurStyle: .systemThickMaterial,

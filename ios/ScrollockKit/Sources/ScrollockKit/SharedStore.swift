@@ -43,6 +43,19 @@ public final class SharedStore: @unchecked Sendable {
     set { defaults.set(newValue?.rawValue, forKey: "requestedBreak") }
   }
 
+  /// The feed the block screen last rendered. Its data source sees the app's
+  /// category, while the button handler only gets the app token, so the
+  /// handler uses this when its own lookup fails.
+  public func noteShieldShown(_ site: Site, at now: Date = .now) {
+    defaults.set(site.rawValue, forKey: "shieldShownSite")
+    defaults.set(now, forKey: "shieldShownAt")
+  }
+
+  public func recentShieldShown(now: Date = .now, within window: TimeInterval = 600) -> Site? {
+    guard let at = defaults.object(forKey: "shieldShownAt") as? Date, now.timeIntervalSince(at) < window else { return nil }
+    return defaults.string(forKey: "shieldShownSite").flatMap(Site.init(rawValue:))
+  }
+
   /// When the block screen's "Take a break…" was tapped. Set even when the feed
   /// is unknown, so the app can ask which feed instead.
   public var breakRequestedAt: Date? {
