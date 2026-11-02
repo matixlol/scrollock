@@ -51,6 +51,13 @@ npm run build:production
 
 swift test --package-path ios/ScrollockKit
 
+# Unlock the dedicated signing keychain (see README) so codesign never prompts.
+SIGNING_JSON="$HOME/.config/scrollock/signing.json"
+if [[ -f "$SIGNING_JSON" ]]; then
+  SIGNING_KEYCHAIN="$(plutil -extract keychainPath raw -o - "$SIGNING_JSON")"
+  security unlock-keychain -p "$(plutil -extract password raw -o - "$SIGNING_JSON")" "$SIGNING_KEYCHAIN"
+fi
+
 cat > "$ARCHIVE_DIR/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
