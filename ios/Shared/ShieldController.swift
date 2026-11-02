@@ -73,21 +73,38 @@ struct ShieldController {
     for site in store.expiredSites(at: now) { endBreak(site) }
   }
 
+  // Resolving a blocked app to its feed. The saved selection is checked first;
+  // the per-feed Managed Settings stores are the fallback, because they are
+  // exactly what iOS is enforcing and don't depend on App Group state.
+
   /// The feed to use when a token can't be matched, if only one feed has apps.
   var onlyConfiguredSite: Site? {
-    let configured = Site.allCases.filter { store.selectionData(for: $0) != nil }
+    let configured = Site.allCases.filter { store.selectionData(for: $0) != nil || isShielding($0) }
     return configured.count == 1 ? configured[0] : nil
   }
 
   func site(for token: ApplicationToken) -> Site? {
     Site.allCases.first { selection(for: $0).applicationTokens.contains(token) }
+      ?? Site.allCases.first { settings($0).shield.applications?.contains(token) == true }
   }
 
   func site(for token: WebDomainToken) -> Site? {
     Site.allCases.first { selection(for: $0).webDomainTokens.contains(token) }
+      ?? Site.allCases.first { settings($0).shield.webDomains?.contains(token) == true }
   }
 
   func site(for token: ActivityCategoryToken) -> Site? {
     Site.allCases.first { selection(for: $0).categoryTokens.contains(token) }
+      ?? Site.allCases.first { site in
+        if case .specific(let tokens, _) = settings(site).shield.applicationCategories { tokens.contains(token) } else { false }
+      }
+  }
+
+  private func settings(_ site: Site) -> ManagedSettingsStore { ManagedSettingsStore(named: .scrollock(site)) }
+
+  private func isShielding(_ site: Site) -> Bool {
+    let shield = settings(site).shield
+    return shield.applications?.isEmpty == false || shield.webDomains?.isEmpty == false
+      || shield.applicationCategories != nil
   }
 }

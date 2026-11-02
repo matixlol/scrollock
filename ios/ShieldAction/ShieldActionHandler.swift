@@ -1,4 +1,5 @@
 import ManagedSettings
+import OSLog
 import ScrollockKit
 import UserNotifications
 
@@ -33,6 +34,8 @@ final class ShieldActionHandler: ShieldActionDelegate {
     // Apps locked through a category arrive with their own token, which may not
     // map to a feed. Fall back to the only configured feed, or let the app ask.
     let site = site ?? controller.onlyConfiguredSite
+    Logger(subsystem: "ar.com.poronga.Scrollock", category: "shield")
+      .notice("Take a break tapped; feed \(site?.rawValue ?? "unknown", privacy: .public)")
     controller.store.requestedBreak = site
     controller.store.breakRequestedAt = .now
     let content = UNMutableNotificationContent()
