@@ -15,7 +15,7 @@ final class AppModel {
   var error: String?
 
   @ObservationIgnored let shields = ShieldController()
-  @ObservationIgnored let credentials = CredentialStore()
+  @ObservationIgnored let sessions = SessionStore()
   @ObservationIgnored let api = ScrollockAPI(origin: AppModel.apiOrigin)
   @ObservationIgnored private var expiryTask: Task<Void, Never>?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -26,7 +26,7 @@ final class AppModel {
   }()
 
   init() {
-    session = credentials.load()
+    session = sessions.load()?.session
   }
 
   var isAuthorized: Bool { authorization == .approved }
@@ -43,6 +43,8 @@ final class AppModel {
   /// Re-syncs with shared state whenever the app becomes active. This is also a
   /// fallback relock in case a Device Activity callback was delayed.
   func refresh() {
+    // Picks up a sign-in or sign-out made in the Safari extension.
+    session = sessions.load()?.session
     authorization = AuthorizationCenter.shared.authorizationStatus
     if isAuthorized { shields.relockExpired() }
     selections = Dictionary(uniqueKeysWithValues: Site.allCases.map { ($0, shields.selection(for: $0)) })
@@ -98,9 +100,14 @@ final class AppModel {
     pairing = nil
   }
 
+  /// Also signs out the Safari extension the next time it syncs.
   func disconnect() {
-    credentials.save(nil)
-    session = nil
+    setSession(nil)
+  }
+
+  private func setSession(_ session: Session?) {
+    sessions.save(SessionRecord(session: session))
+    self.session = session
   }
 
   private func pollPairing() {
@@ -109,8 +116,7 @@ final class AppModel {
       while let pairing, !Task.isCancelled {
         do {
           if case .connected(let session) = try await api.poll(pairing) {
-            credentials.save(session)
-            self.session = session
+            setSession(session)
             self.pairing = nil
             return
           }

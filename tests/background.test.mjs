@@ -156,3 +156,80 @@ test("authentication failures clear only rejected credentials; temporary pairing
   assert.equal(storage.pair, undefined);
   assert.equal(requests.at(-1).authorization, "Bearer pair-secret");
 });
+
+test("Safari shares the Telegram session with the iOS app; the latest change wins", async () => {
+  const storage = { leases: {} };
+  const native = { session: null, updatedAt: 0, sent: [], fail: false };
+  const context = vm.createContext({
+    browser: {
+      storage: {
+        local: {
+          get: async () => structuredClone(storage),
+          set: async (value) => Object.assign(storage, structuredClone(value)),
+          remove: async (key) => delete storage[key],
+        },
+      },
+      runtime: {
+        getURL: () => "safari-web-extension://test/",
+        onMessage: { addListener() {} },
+        sendNativeMessage: async (_, message) => {
+          if (native.fail) throw new Error("no native app");
+          native.sent.push(structuredClone(message));
+          if (message.updatedAt > native.updatedAt)
+            Object.assign(native, {
+              session: message.session,
+              updatedAt: message.updatedAt,
+            });
+          return { session: native.session, updatedAt: native.updatedAt };
+        },
+      },
+      alarms: { onAlarm: { addListener() {} } },
+    },
+    URL,
+    AbortSignal,
+    Date,
+    SCROLLOCK_API: "https://api.example",
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "safari-token", user: { name: "Ana" } }),
+    }),
+  });
+  vm.runInContext(
+    await readFile(
+      new URL("../extension/background.js", import.meta.url),
+      "utf8",
+    ),
+    context,
+  );
+  const sender = { url: "safari-web-extension://test/popup.html" };
+
+  Object.assign(native, {
+    session: { token: "app-token", user: { name: "Ana" } },
+    updatedAt: 1000,
+  });
+  assert.equal(
+    (await context.handle({ type: "state" }, sender)).user.name,
+    "Ana",
+  );
+  assert.equal(storage.session.token, "app-token", "adopts the app's login");
+
+  storage.pair = { id: "pair", secret: "secret" };
+  await context.handle({ type: "poll" }, sender);
+  assert.equal(native.session.token, "safari-token", "pushes a Safari login");
+  assert.equal(native.updatedAt, storage.sessionAt);
+
+  Object.assign(native, { session: null, updatedAt: storage.sessionAt + 1 });
+  assert.equal(
+    (await context.handle({ type: "state" }, sender)).user,
+    undefined,
+  );
+  assert.equal(storage.session, undefined, "follows a sign-out in the app");
+
+  native.fail = true;
+  storage.session = { token: "kept", user: { name: "Ana" } };
+  assert.equal(
+    (await context.handle({ type: "state" }, sender)).user.name,
+    "Ana",
+  );
+});

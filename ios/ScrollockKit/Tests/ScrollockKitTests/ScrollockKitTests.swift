@@ -124,3 +124,16 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   store.requestedBreak = .instagram
   #expect(store.requestedBreak == .instagram)
 }
+
+@Test func latestSessionChangeWins() throws {
+  let app = SessionRecord(session: session, updatedAt: 1000)
+  let signedOut = SessionRecord(session: nil, updatedAt: 2000)
+  #expect(app.merged(with: signedOut) == signedOut)
+  #expect(signedOut.merged(with: app) == signedOut)
+  #expect(app.merged(with: nil) == app)
+  // Matches the extension's wire format: { session: { token, user }, updatedAt }.
+  let json = #"{"session":{"token":"t","user":{"id":7,"name":"Ana"}},"updatedAt":1730000000000}"#
+  let decoded = try JSONDecoder().decode(SessionRecord.self, from: Data(json.utf8))
+  #expect(decoded.session?.user.name == "Ana")
+  #expect(try JSONDecoder().decode(SessionRecord.self, from: Data(#"{"session":null,"updatedAt":5}"#.utf8)).session == nil)
+}

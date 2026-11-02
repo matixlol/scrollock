@@ -40,7 +40,13 @@ test("CI build numbers identify both browser packages without changing the sourc
             await readFile(join(dir, "extension/chrome-key.txt"), "utf8")
           ).trim(),
         );
-      else assert.deepEqual(manifest.permissions, source.permissions);
+      else
+        assert.deepEqual(manifest.permissions, [
+          ...source.permissions,
+          "nativeMessaging",
+        ]);
+      if (target === "chrome")
+        assert.deepEqual(manifest.permissions, source.permissions);
     }
   }
   assert.deepEqual(

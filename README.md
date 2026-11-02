@@ -108,12 +108,12 @@ The iPhone app (iOS 17+) contains the Safari Web Extension and also locks the **
 - **Block screen.** Opening a locked app shows Scrollock's shield. **Take a break…** posts a notification that opens the break form in the app. A shield cannot collect a reason itself, so this keeps the same "duration and reason" rule as the extension.
 - **Breaks.** A break uses the same `/api/unlock` endpoint and limits (1–60 minutes, reason of up to 280 characters). The group report must succeed before anything unlocks. A break for a feed that already has an active lease (for example from Safari) reuses that deadline and sends no second report. **Lock now** ends it early.
 - **Relocking.** Each feed has its own Managed Settings store and its own Device Activity schedule, so a break lifts only that feed's shields and never touches parental or other Screen Time limits. The Device Activity monitor relocks when the schedule ends. iOS may deliver that a few minutes late, so the app also relocks expired breaks whenever it opens. Device Activity requires intervals of at least 15 minutes, so shorter breaks backdate the interval start.
-- **Telegram.** The app pairs with Telegram on its own (same login page, opened in Safari) and keeps the session in the Keychain on this device only.
+- **Telegram.** The app and the Safari extension share one login. The session lives in a Keychain item shared through the App Group, and the extension syncs with it through native messaging whenever it checks state. Connecting or disconnecting on either side applies to both: the most recent change wins.
 
 The native code lives in `ios/`:
 
 - `ios/Scrollock.xcodeproj`: committed project with five targets (app, Safari extension, Device Activity monitor, shield configuration, shield action). It uses folder-synchronized groups, so adding a Swift file to a target folder needs no project edits.
-- `ios/ScrollockKit`: platform-independent Swift package (API client, lease and relock math, shared App Group state, Keychain), unit-tested with `swift test`.
+- `ios/ScrollockKit`: platform-independent Swift package (API client, lease and relock math, shared App Group state, shared session Keychain), unit-tested with `swift test`.
 - `ios/Shared`: Screen Time shield controller shared by the app and extensions.
 
 The Safari extension target copies `dist/safari` into its bundle at build time, so run `npm run build` (or `build:production`) before building in Xcode.

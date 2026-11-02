@@ -42,6 +42,10 @@
 				);
 			};
 		};
+		71E7426420D107FA7895BC00 = {
+			isa = PBXBuildFile;
+			productRef = B5E31BB4B2FCC47D9482F90C;
+		};
 		932756EB67D3CB1D463FF06E = {
 			isa = PBXBuildFile;
 			productRef = CE58CD7605DBB54BB8714B85;
@@ -134,6 +138,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = text.plist.xml;
 			path = "SafariExtension-Info.plist";
+			sourceTree = "<group>";
+		};
+		9933DC1BAF56237D9A29E5CE = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.entitlements;
+			path = SafariExtension.entitlements;
 			sourceTree = "<group>";
 		};
 		A0FFE183A1A3A8B8A5768D28 = {
@@ -237,6 +247,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				71E7426420D107FA7895BC00,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +279,7 @@
 				FA8601B18CA4CC91816F2A2B,
 				A2ECAF59B8D366FE0A9490E5,
 				A0FFE183A1A3A8B8A5768D28,
+				9933DC1BAF56237D9A29E5CE,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -343,6 +355,7 @@
 			);
 			name = "Scrollock Extension";
 			packageProductDependencies = (
+				B5E31BB4B2FCC47D9482F90C,
 			);
 			productName = "Scrollock Extension";
 			productReference = CF002374A4DAEA8350BA62B6;
@@ -640,6 +653,7 @@
 				SKIP_INSTALL = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/SafariExtension.entitlements;
 				INFOPLIST_FILE = "Config/SafariExtension-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Extension";
 				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Extension;
@@ -778,6 +792,7 @@
 				SKIP_INSTALL = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				CODE_SIGN_ENTITLEMENTS = Config/SafariExtension.entitlements;
 				INFOPLIST_FILE = "Config/SafariExtension-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Scrollock Extension";
 				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.Extension;
@@ -864,6 +879,11 @@
 			productName = ScrollockKit;
 		};
 		850D427344751E195ED60FBF = {
+			isa = XCSwiftPackageProductDependency;
+			package = A46A1BCE0B67C45BEC8F435B;
+			productName = ScrollockKit;
+		};
+		B5E31BB4B2FCC47D9482F90C = {
 			isa = XCSwiftPackageProductDependency;
 			package = A46A1BCE0B67C45BEC8F435B;
 			productName = ScrollockKit;

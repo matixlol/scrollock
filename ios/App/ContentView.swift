@@ -117,7 +117,7 @@ struct TelegramSection: View {
     } header: {
       Text("Telegram")
     } footer: {
-      Text("Breaks are reported to your group before apps unlock. Only group members can connect.")
+      Text("Shared with the Scrollock Safari extension. Breaks are reported to your group before apps unlock. Only group members can connect.")
     }
   }
 }

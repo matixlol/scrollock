@@ -26,6 +26,8 @@ for (const target of ["chrome", "safari"]) {
     manifest.key = (await readFile("extension/chrome-key.txt", "utf8")).trim();
   } else {
     await rm(dir + "/chrome-key.txt");
+    // Shares the Telegram session with the containing iOS app.
+    manifest.permissions = [...manifest.permissions, "nativeMessaging"];
   }
   await writeFile(
     dir + "/manifest.json",

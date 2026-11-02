@@ -63,9 +63,47 @@ async function request(path, body, token) {
   return result;
 }
 async function state() {
-  const stored = await api.storage.local.get(["session", "leases", "pair"]);
+  const stored = await api.storage.local.get([
+    "session",
+    "sessionAt",
+    "leases",
+    "pair",
+  ]);
   stored.leases ||= {};
   return stored;
+}
+// On iOS the containing app keeps the Telegram session in a shared Keychain.
+// The most recent sign-in or sign-out, from either side, wins.
+async function syncNativeSession(current) {
+  if (typeof api.runtime.sendNativeMessage !== "function") return current;
+  let reply;
+  try {
+    reply = await api.runtime.sendNativeMessage("application.id", {
+      type: "session",
+      session: current.session || null,
+      updatedAt: current.sessionAt || 0,
+    });
+  } catch {
+    return current;
+  }
+  if (!(reply?.updatedAt > (current.sessionAt || 0))) return current;
+  current.sessionAt = reply.updatedAt;
+  if (reply.session) current.session = reply.session;
+  else delete current.session;
+  await saveSession(current);
+  return current;
+}
+async function saveSession({ session, sessionAt }) {
+  if (session) await api.storage.local.set({ session, sessionAt });
+  else {
+    await api.storage.local.remove("session");
+    await api.storage.local.set({ sessionAt });
+  }
+}
+async function setSession(session) {
+  const current = { session, sessionAt: Date.now() };
+  await saveSession(current);
+  await syncNativeSession(current);
 }
 async function handle(message, sender) {
   const current = await state();
@@ -75,6 +113,8 @@ async function handle(message, sender) {
   const trusted = sender.url?.startsWith(api.runtime.getURL(""));
   if (!trusted && !tabSite) throw new Error("Unsupported sender");
   const site = trusted ? message.site : tabSite;
+  if (message.type === "state" || message.type === "unlock")
+    await syncNativeSession(current);
   if (message.type === "state")
     return {
       user: current.session?.user,
@@ -107,7 +147,7 @@ async function handle(message, sender) {
       throw error;
     }
     if (result.token) {
-      await api.storage.local.set({ session: result });
+      await setSession(result);
       await api.storage.local.remove("pair");
     }
     return {};
@@ -136,7 +176,7 @@ async function handle(message, sender) {
         current.session.token,
       );
     } catch (error) {
-      if (error.status === 401) await api.storage.local.remove("session");
+      if (error.status === 401) await setSession(null);
       throw error;
     }
     current.leases[site] = lease;
