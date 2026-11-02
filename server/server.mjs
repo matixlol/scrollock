@@ -9,6 +9,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { authorizedPage } from "./authorized-page.mjs";
 import { downloadsPage } from "./downloads-page.mjs";
+import { loginMismatchPage } from "./login-mismatch-page.mjs";
 
 const json = (res, status, value, headers = {}) => {
   const body = JSON.stringify(value);
@@ -283,11 +284,11 @@ export async function createServer(options = {}) {
       const pairId = url.searchParams.get("id") || "";
       if (!pairs.has(pairId))
         return json(res, 404, { error: "pairing not found" });
-      const nonce = id();
-      pairs.get(pairId).nonce = nonce;
+      // One nonce per pairing, in a cookie named for it (see worker/index.mjs).
+      const nonce = (pairs.get(pairId).nonce ||= id());
       res.setHeader(
         "Set-Cookie",
-        `scrollock_pair=${nonce}; HttpOnly; SameSite=Lax; Path=/api/telegram-auth; Max-Age=600${cfg.origin.startsWith("https:") ? "; Secure" : ""}`,
+        `scrollock_pair_${pairId}=${nonce}; HttpOnly; SameSite=Lax; Path=/api/telegram-auth; Max-Age=600${cfg.origin.startsWith("https:") ? "; Secure" : ""}`,
       );
       const html = cfg.mock
         ? `<form method="get" action="/api/telegram-auth"><input type="hidden" name="pair" value="${esc(pairId)}"><input type="hidden" name="mock" value="1"><button>Authorize fixture user</button></form>`
@@ -307,9 +308,11 @@ export async function createServer(options = {}) {
         (!pair.nonce ||
           !req.headers.cookie
             ?.split(/;\s*/)
-            .includes(`scrollock_pair=${pair.nonce}`))
-      )
-        return json(res, 401, { error: "login browser mismatch" });
+            .includes(`scrollock_pair_${pairId}=${pair.nonce}`))
+      ) {
+        res.writeHead(401, { "content-type": "text/html; charset=utf-8" });
+        return res.end(loginMismatchPage);
+      }
       let user;
       if (cfg.mock && url.searchParams.get("mock") === "1")
         user = { id: 1001, name: "Fixture User" };

@@ -109,7 +109,7 @@ struct TelegramSection: View {
           ProgressView()
           Text("Waiting for Telegram…").padding(.leading, 8)
         }
-        Button("Open Telegram login") { Task { await model.connect() } }
+        Button("Open Telegram login") { Task { await model.reopenLogin() } }
         Button("Cancel", role: .cancel) { model.cancelPairing() }
       } else {
         Button("Connect Telegram") { Task { await model.connect() } }

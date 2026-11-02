@@ -1,5 +1,6 @@
 import { authorizedPage } from "../server/authorized-page.mjs";
 import { downloadsPage } from "../server/downloads-page.mjs";
+import { loginMismatchPage } from "../server/login-mismatch-page.mjs";
 
 const encoder = new TextEncoder();
 const SITES = new Set(["x", "instagram", "youtube"]);
@@ -284,8 +285,13 @@ export class ScrollockState {
       const pair = await this.storage.get(key);
       if (!pair || pair.expiresAt <= this.now())
         return json(404, { error: "pairing not found" }, secureHeaders);
-      pair.nonce = randomId();
-      await this.storage.put(key, pair);
+      // One nonce per pairing, in a cookie named for it: reopening the login
+      // page or starting another pairing in the same browser can't
+      // invalidate a login that is already in progress.
+      if (!pair.nonce) {
+        pair.nonce = randomId();
+        await this.storage.put(key, pair);
+      }
       const widget = config.mock
         ? `<form method="get" action="/api/telegram-auth"><input type="hidden" name="pair" value="${escapeHtml(pairId)}"><input type="hidden" name="mock" value="1"><button>Authorize fixture user</button></form>`
         : `<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${escapeHtml(this.env.TELEGRAM_BOT_USERNAME)}" data-size="large" data-auth-url="${escapeHtml(config.origin)}/api/telegram-auth?pair=${encodeURIComponent(pairId)}"></script>`;
@@ -295,7 +301,7 @@ export class ScrollockState {
           headers: {
             ...secureHeaders,
             "content-type": "text/html; charset=utf-8",
-            "Set-Cookie": `scrollock_pair=${pair.nonce}; HttpOnly; SameSite=Lax; Path=/api/telegram-auth; Max-Age=600${config.origin.startsWith("https:") ? "; Secure" : ""}`,
+            "Set-Cookie": `scrollock_pair_${pairId}=${pair.nonce}; HttpOnly; SameSite=Lax; Path=/api/telegram-auth; Max-Age=600${config.origin.startsWith("https:") ? "; Secure" : ""}`,
           },
         },
       );
@@ -312,9 +318,15 @@ export class ScrollockState {
         (!pair.nonce ||
           !(request.headers.get("cookie") || "")
             .split(/;\s*/)
-            .includes(`scrollock_pair=${pair.nonce}`))
+            .includes(`scrollock_pair_${pairId}=${pair.nonce}`))
       )
-        return json(401, { error: "login browser mismatch" }, secureHeaders);
+        return new Response(loginMismatchPage, {
+          status: 401,
+          headers: {
+            ...secureHeaders,
+            "content-type": "text/html; charset=utf-8",
+          },
+        });
 
       let user;
       if (config.mock && url.searchParams.get("mock") === "1") {

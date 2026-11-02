@@ -194,6 +194,23 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
   const pairing = await (await request("/api/pair", { method: "POST" })).json();
   const login = await request(`/login?id=${pairing.id}`);
   const cookie = login.headers.get("set-cookie").split(";")[0];
+  // Reopening the login page, or starting another pairing in the same
+  // browser, must not invalidate the login already in progress.
+  assert.equal(
+    (await request(`/login?id=${pairing.id}`)).headers
+      .get("set-cookie")
+      .split(";")[0],
+    cookie,
+  );
+  const overlapping = await (
+    await request("/api/pair", { method: "POST" })
+  ).json();
+  const overlappingCookie = (
+    await request(`/login?id=${overlapping.id}`)
+  ).headers
+    .get("set-cookie")
+    .split(";")[0];
+  assert.notEqual(overlappingCookie.split("=")[0], cookie.split("=")[0]);
   const fields = {
     id: "42",
     first_name: "Ada",
@@ -211,8 +228,12 @@ test("Worker verifies browser-bound Telegram login and rejects a replay", async 
     .update(check)
     .digest("hex");
   const callback = `/api/telegram-auth?pair=${pairing.id}&${new URLSearchParams({ ...fields, hash })}`;
-  assert.equal((await request(callback)).status, 401, "cookie is required");
-  const authorized = await request(callback, { headers: { cookie } });
+  const missing = await request(callback);
+  assert.equal(missing.status, 401, "cookie is required");
+  assert.match(await missing.text(), /choose Connect again/);
+  const authorized = await request(callback, {
+    headers: { cookie: `${overlappingCookie}; ${cookie}` },
+  });
   assert.equal(authorized.status, 200);
   assert.match(authorized.headers.get("content-type"), /text\/html/);
   const page = await authorized.text();

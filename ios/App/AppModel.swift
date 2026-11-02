@@ -95,6 +95,13 @@ final class AppModel {
     }
   }
 
+  /// Reopens the current login instead of starting a new pairing, so a login
+  /// already in progress in Safari keeps working.
+  func reopenLogin() async {
+    guard let pairing else { return await connect() }
+    await UIApplication.shared.open(pairing.loginUrl)
+  }
+
   func cancelPairing() {
     pollTask?.cancel()
     pairing = nil
