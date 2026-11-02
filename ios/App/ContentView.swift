@@ -240,6 +240,7 @@ struct BreakForm: View {
       do {
         try await model.takeBreak(site: site, minutes: minutes, reason: reason)
         dismiss()
+        model.returnToFeed(site)
       } catch {
         self.error = error.localizedDescription
       }

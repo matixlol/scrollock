@@ -69,21 +69,41 @@ private struct Step: View {
   }
 }
 
-/// Step-by-step instructions for the "App is opened" automation. iOS doesn't
-/// let apps create automations, so the user adds it once in Shortcuts.
+/// Instructions for the "when Instagram opens" automation. iOS doesn't let apps
+/// create automations, so the user adds it once in Shortcuts. iOS 27 replaced
+/// the Automation tab with describing a shortcut in plain language.
 struct AutomationGuide: View {
   let finish: () -> Void
   @Environment(\.dismiss) private var dismiss
+  @State private var copied: Site?
 
-  private let steps = [
-    "Open **Shortcuts** and go to the **Automation** tab.",
-    "Tap **+** and choose **App**.",
-    "Tap **Choose**, select **Instagram**, and keep **Is Opened** checked.",
-    "Choose **Run Immediately**, turn off **Notify When Run**, and tap **Next**.",
-    "Tap **New Blank Automation**, search for **Take a Scrollock Break**, and add it.",
-    "Tap **Feed**, choose **Instagram**, and tap **Done**.",
-    "Repeat for X and YouTube if you lock them.",
-  ]
+  private var isIOS27: Bool {
+    if #available(iOS 27, *) { true } else { false }
+  }
+
+  private var steps: [String] {
+    isIOS27
+      ? [
+        "Copy the description for an app below.",
+        "Open **Shortcuts** and tap **New Shortcut**.",
+        "Paste the description and let Shortcuts build it.",
+        "Check that it uses **Take a Scrollock Break** with the right feed and runs **without asking** or notifying. Save it.",
+        "Repeat for each app you lock.",
+      ]
+      : [
+        "Open **Shortcuts** and go to the **Automation** tab.",
+        "Tap **+** and choose **App**.",
+        "Tap **Choose**, select **Instagram**, and keep **Is Opened** checked.",
+        "Choose **Run Immediately**, turn off **Notify When Run**, and tap **Next**.",
+        "Tap **New Blank Automation**, search for **Take a Scrollock Break**, and add it.",
+        "Tap **Feed**, choose **Instagram**, and tap **Done**.",
+        "Repeat for X and YouTube if you lock them.",
+      ]
+  }
+
+  private func description(for site: Site) -> String {
+    "When I open \(site.displayName), run Take a Scrollock Break with the feed set to \(site.displayName). Run it immediately without asking or notifying me."
+  }
 
   var body: some View {
     NavigationStack {
@@ -96,7 +116,21 @@ struct AutomationGuide: View {
             }
           }
         } footer: {
-          Text("When a locked app opens, Scrollock comes up with its break form. During a break the automation does nothing, so the app opens normally.")
+          Text("When a locked app opens, Scrollock comes up on its break form. During a break the automation does nothing, so the app opens normally.")
+        }
+        if isIOS27 {
+          Section("Descriptions") {
+            ForEach(Site.allCases) { site in
+              Button {
+                UIPasteboard.general.string = description(for: site)
+                copied = site
+              } label: {
+                LabeledContent(site.displayName) {
+                  Label(copied == site ? "Copied" : "Copy", systemImage: copied == site ? "checkmark" : "doc.on.doc")
+                }
+              }
+            }
+          }
         }
         Section {
           Button("Open Shortcuts") { UIApplication.shared.open(URL(string: "shortcuts://")!) }

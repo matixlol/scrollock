@@ -29,8 +29,19 @@ final class AppModel {
     return value.flatMap(URL.init(string:)) ?? URL(string: "https://scrollock.poronga.com.ar")!
   }()
 
+  /// The live model, for App Intents that run inside the app process.
+  static weak var shared: AppModel?
+
   init() {
     session = sessions.load()?.session
+    Self.shared = self
+  }
+
+  /// After a break starts, go back to the app the person came for.
+  func returnToFeed(_ site: Site) {
+    let urls: [Site: String] = [.x: "twitter://timeline", .instagram: "instagram://app", .youtube: "youtube://"]
+    guard let url = urls[site].flatMap(URL.init(string:)) else { return }
+    UIApplication.shared.open(url)
   }
 
   var isAuthorized: Bool { authorization == .approved }
