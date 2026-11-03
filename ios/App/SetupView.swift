@@ -70,12 +70,11 @@ private struct Step: View {
 }
 
 /// Instructions for the "when Instagram opens" automation. iOS doesn't let apps
-/// create automations, so the user adds it once in Shortcuts. iOS 27 replaced
-/// the Automation tab with describing a shortcut in plain language.
+/// create automations, so the user adds it once in Shortcuts. iOS 27 moved
+/// automations into each shortcut (Edit → Automation), so the steps differ.
 struct AutomationGuide: View {
   let finish: () -> Void
   @Environment(\.dismiss) private var dismiss
-  @State private var copied: Site?
 
   private var isIOS27: Bool {
     if #available(iOS 27, *) { true } else { false }
@@ -84,11 +83,11 @@ struct AutomationGuide: View {
   private var steps: [String] {
     isIOS27
       ? [
-        "Copy the description for an app below.",
-        "Open **Shortcuts** and tap **New Shortcut**.",
-        "Paste the description and let Shortcuts build it.",
-        "Check that it uses **Take a Scrollock Break** with the right feed and runs **without asking** or notifying. Save it.",
-        "Repeat for each app you lock.",
+        "Open **Shortcuts**, tap **+** to make a new shortcut, and choose to build it yourself instead of describing it.",
+        "Search for **Take a Scrollock Break** and add it. Tap **Feed** and choose **Instagram**.",
+        "Tap **Edit**, then **Automation**. Choose **App**, select **Instagram**, and keep **Is Opened**.",
+        "Tap **Edit**, then the **Info** button, then **Privacy**, and turn on **Allow Running When Locked** so it runs without asking.",
+        "Tap **Done**. Repeat for X and YouTube if you lock them.",
       ]
       : [
         "Open **Shortcuts** and go to the **Automation** tab.",
@@ -99,10 +98,6 @@ struct AutomationGuide: View {
         "Tap **Feed**, choose **Instagram**, and tap **Done**.",
         "Repeat for X and YouTube if you lock them.",
       ]
-  }
-
-  private func description(for site: Site) -> String {
-    "When I open \(site.displayName), run Take a Scrollock Break with the feed set to \(site.displayName). Run it immediately without asking or notifying me."
   }
 
   var body: some View {
@@ -117,20 +112,6 @@ struct AutomationGuide: View {
           }
         } footer: {
           Text("When a locked app opens, Scrollock comes up on its break form. During a break the automation does nothing, so the app opens normally.")
-        }
-        if isIOS27 {
-          Section("Descriptions") {
-            ForEach(Site.allCases) { site in
-              Button {
-                UIPasteboard.general.string = description(for: site)
-                copied = site
-              } label: {
-                LabeledContent(site.displayName) {
-                  Label(copied == site ? "Copied" : "Copy", systemImage: copied == site ? "checkmark" : "doc.on.doc")
-                }
-              }
-            }
-          }
         }
         Section {
           Button("Open Shortcuts") { UIApplication.shared.open(URL(string: "shortcuts://")!) }
