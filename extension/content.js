@@ -17,6 +17,86 @@
       true,
     );
   }
+  // A short counts as opened when it is the page that loaded or a link the
+  // user followed from outside the player. Shorts the player advances to by
+  // swiping, scrolling, arrow keys or autoplay are the feed and stay blocked.
+  const openedShorts = new Set();
+  const player = "ytd-shorts, shorts-page";
+  const openShort = (url) => {
+    const id = ScrollockRules.shortId(url.pathname);
+    if (id) openedShorts.add(id);
+  };
+  if (site === "youtube") {
+    openShort(location);
+    window.addEventListener(
+      "click",
+      (event) => {
+        const link = event
+          .composedPath()
+          .find((node) => node instanceof HTMLAnchorElement && node.href);
+        if (event.isTrusted && link && !link.closest(player))
+          openShort(new URL(link.href));
+      },
+      true,
+    );
+    // While an opened short is showing, stop the gestures that move the player
+    // to the next one. Comments and other panels keep scrolling normally.
+    const panel =
+      "ytd-engagement-panel-section-list-renderer, ytm-bottom-sheet-renderer, bottom-sheet-container, input, textarea, [contenteditable]";
+    const pinned = (event) =>
+      document.documentElement.hasAttribute("data-scrollock-short") &&
+      !event
+        .composedPath()
+        .some((node) => node instanceof Element && node.matches(panel));
+    const stop = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const inPlayer = (event) =>
+      event
+        .composedPath()
+        .some((node) => node instanceof Element && node.matches(player));
+    window.addEventListener(
+      "wheel",
+      (event) => {
+        if (pinned(event) && inPlayer(event)) stop(event);
+      },
+      { capture: true, passive: false },
+    );
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          pinned(event) &&
+          ["ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key)
+        )
+          stop(event);
+      },
+      true,
+    );
+    let touchStart = null;
+    window.addEventListener(
+      "touchstart",
+      (event) => {
+        touchStart = event.touches.length === 1 ? event.touches[0] : null;
+      },
+      { capture: true, passive: true },
+    );
+    for (const type of ["touchmove", "touchend"])
+      window.addEventListener(
+        type,
+        (event) => {
+          const touch = event.changedTouches[0];
+          if (!touchStart || !touch || !pinned(event) || !inPlayer(event))
+            return;
+          const dx = Math.abs(touch.clientX - touchStart.clientX);
+          const dy = Math.abs(touch.clientY - touchStart.clientY);
+          // Vertical swipes change shorts; horizontal drags scrub the video.
+          if (dy > 10 && dy > dx) stop(event);
+        },
+        { capture: true, passive: false },
+      );
+  }
   // Keep the site shell, navigation and search controls intact. Never fall back
   // to hiding body/main when a site changes its feed markup.
   const feeds = {
@@ -24,13 +104,21 @@
     instagram:
       'main > :nth-child(1) > div[style], main article, main div:has(> div > div > a[href^="/p/"]), section > main div.xw7yly9 > div.xmnaoh6',
     youtube:
-      "ytd-browse, ytd-shorts, ytm-shorts, ytm-reel-video-renderer, .rich-grid-renderer-contents, ytm-browse ytm-section-list-renderer",
+      "ytd-browse, ytd-shorts, ytm-shorts, shorts-page, ytm-reel-video-renderer, .rich-grid-renderer-contents, ytm-browse ytm-section-list-renderer",
   };
   function render() {
     if (!document.documentElement) return;
     const unlocked = expiresAt > Date.now();
     const blocked =
-      !unlocked && ScrollockRules.blockedRoute(site, location.pathname);
+      !unlocked &&
+      ScrollockRules.blockedRoute(site, location.pathname, openedShorts);
+    document.documentElement.toggleAttribute(
+      "data-scrollock-short",
+      !unlocked &&
+        !blocked &&
+        site === "youtube" &&
+        Boolean(ScrollockRules.shortId(location.pathname)),
+    );
     document.documentElement.toggleAttribute(
       "data-scrollock-unlocked",
       unlocked,

@@ -10,3 +10,10 @@ html:not([data-scrollock-unlocked])
 html:not([data-scrollock-unlocked]) [data-scrollock-feed] {
   display: none !important;
 }
+/* An opened short plays on its own: no feed to scroll or step through. */
+html[data-scrollock-short] ytd-shorts #shorts-container {
+  overflow: hidden !important;
+}
+html[data-scrollock-short] ytd-shorts .navigation-container {
+  display: none !important;
+}

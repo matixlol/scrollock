@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "../extension/rules.js";
-const { siteForHost, blockedRoute } = globalThis.ScrollockRules;
+const { siteForHost, shortId, blockedRoute } = globalThis.ScrollockRules;
 test("host matching cannot match lookalike domains", () => {
   assert.equal(siteForHost("m.youtube.com"), "youtube");
   assert.equal(siteForHost("evilx.com"), null);
@@ -62,4 +62,20 @@ test("Instagram post and reel permalinks stay accessible without unblocking feed
     "/reels/audio/123/",
   ])
     assert.equal(blockedRoute("instagram", path), true, path);
+});
+test("opened YouTube shorts load while the Shorts feed stays blocked", () => {
+  const link = new URL(
+    "https://www.youtube.com/shorts/f9jYPLU8h3g?feature=share",
+  );
+  assert.equal(shortId(link.pathname), "f9jYPLU8h3g");
+  const opened = new Set([shortId(link.pathname)]);
+  assert.equal(blockedRoute("youtube", link.pathname, opened), false);
+  assert.equal(blockedRoute("youtube", "/shorts/f9jYPLU8h3g/", opened), false);
+  // The next short in the player was never opened directly.
+  assert.equal(blockedRoute("youtube", "/shorts/CIb0cNKjUOo", opened), true);
+  assert.equal(blockedRoute("youtube", link.pathname), true);
+  for (const path of ["/shorts", "/shorts/", "/shorts/a/b"]) {
+    assert.equal(shortId(path), null, path);
+    assert.equal(blockedRoute("youtube", path, opened), true, path);
+  }
 });
