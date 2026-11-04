@@ -75,6 +75,17 @@ private struct Step: View {
 struct AutomationGuide: View {
   let finish: () -> Void
   @Environment(\.dismiss) private var dismiss
+  @State private var showingManualSteps = false
+
+  /// Shared iCloud shortcuts that include the "<app> is opened" trigger (iOS 27
+  /// shares automation triggers with a shortcut). Each runs Take a Scrollock
+  /// Break for its feed and is set to run when locked, so it never asks.
+  /// Make one on an iPhone, then Share → Copy iCloud Link.
+  static let sharedAutomations: [Site: URL] = [:]
+
+  private var oneTapSites: [Site] {
+    isIOS27 ? Site.allCases.filter { Self.sharedAutomations[$0] != nil } : []
+  }
 
   private var isIOS27: Bool {
     if #available(iOS 27, *) { true } else { false }
@@ -103,15 +114,32 @@ struct AutomationGuide: View {
   var body: some View {
     NavigationStack {
       List {
-        Section {
-          ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-              Text("\(index + 1)").font(.headline.monospacedDigit()).foregroundStyle(.secondary)
-              Text(.init(step))
+        if !oneTapSites.isEmpty {
+          Section {
+            ForEach(oneTapSites) { site in
+              Button("Add \(site.displayName) automation") {
+                UIApplication.shared.open(Self.sharedAutomations[site]!)
+              }
             }
+          } header: {
+            Text("One tap")
+          } footer: {
+            Text("Shortcuts opens with the automation ready. **Make sure to turn on the Automation**, then tap **Set Up Shortcut**. Add one for each app you lock.")
           }
-        } footer: {
-          Text("When a locked app opens, Scrollock comes up on its break form. During a break the automation does nothing, so the app opens normally.")
+        }
+        if oneTapSites.isEmpty || showingManualSteps {
+          Section {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+              HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("\(index + 1)").font(.headline.monospacedDigit()).foregroundStyle(.secondary)
+                Text(.init(step))
+              }
+            }
+          } footer: {
+            Text("When a locked app opens, Scrollock comes up on its break form. During a break the automation does nothing, so the app opens normally.")
+          }
+        } else {
+          Button("Set up manually instead") { showingManualSteps = true }
         }
         Section {
           Button("Open Shortcuts") { UIApplication.shared.open(URL(string: "shortcuts://")!) }
