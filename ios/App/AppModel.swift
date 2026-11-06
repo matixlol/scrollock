@@ -52,7 +52,7 @@ final class AppModel {
 
   func selectedCount(for site: Site) -> Int {
     let selection = selections[site] ?? FamilyActivitySelection()
-    return selection.applicationTokens.count + selection.categoryTokens.count + selection.webDomainTokens.count
+    return selection.applicationTokens.count + selection.categoryTokens.count
   }
 
   /// Re-syncs with shared state whenever the app becomes active. This is also a
@@ -61,7 +61,10 @@ final class AppModel {
     // Picks up a sign-in or sign-out made in the Safari extension.
     session = sessions.load()?.session
     authorization = AuthorizationCenter.shared.authorizationStatus
-    if isAuthorized { shields.relockExpired() }
+    if isAuthorized {
+      shields.clearWebShields()
+      shields.relockExpired()
+    }
     selections = Dictionary(uniqueKeysWithValues: Site.allCases.map { ($0, shields.selection(for: $0)) })
     leases = Dictionary(uniqueKeysWithValues: Site.allCases.compactMap { site in shields.store.lease(for: site).map { (site, $0) } })
     scheduleExpiryRefresh()

@@ -34,15 +34,27 @@ struct ShieldController {
     if store.lease(for: site)?.isActive() != true { shield(site) }
   }
 
+  /// Shields apps only. Websites stay reachable so the Safari extension can show
+  /// them with the feed hidden; a category lock would otherwise also block every
+  /// site in that category.
   func shield(_ site: Site) {
     let selection = selection(for: site)
     let settings = ManagedSettingsStore(named: .scrollock(site))
     settings.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
     settings.shield.applicationCategories =
       selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-    settings.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
-    settings.shield.webDomainCategories =
-      selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
+    settings.shield.webDomains = nil
+    settings.shield.webDomainCategories = nil
+  }
+
+  /// Lifts website shields applied by older versions, without touching app
+  /// shields, which may be enforced even if the saved selection is gone.
+  func clearWebShields() {
+    for site in Site.allCases {
+      let settings = settings(site)
+      if settings.shield.webDomains != nil { settings.shield.webDomains = nil }
+      if settings.shield.webDomainCategories != nil { settings.shield.webDomainCategories = nil }
+    }
   }
 
   /// Schedules the relock before lifting the shield: if the schedule cannot be
@@ -104,7 +116,6 @@ struct ShieldController {
 
   private func isShielding(_ site: Site) -> Bool {
     let shield = settings(site).shield
-    return shield.applications?.isEmpty == false || shield.webDomains?.isEmpty == false
-      || shield.applicationCategories != nil
+    return shield.applications?.isEmpty == false || shield.applicationCategories != nil
   }
 }

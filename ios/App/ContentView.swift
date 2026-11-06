@@ -141,7 +141,7 @@ struct AppPicker: View {
 
   var body: some View {
     NavigationStack {
-      FamilyActivityPicker(headerText: "Choose the apps to lock for \(site.displayName)", selection: $selection)
+      FamilyActivityPicker(headerText: "Choose the apps to lock for \(site.displayName). Websites stay open in Safari with the feed hidden.", selection: $selection)
         .navigationTitle(site.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
