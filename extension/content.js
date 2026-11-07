@@ -106,6 +106,13 @@
     youtube:
       "ytd-browse, ytd-shorts, ytm-shorts, shorts-page, ytm-reel-video-renderer, .rich-grid-renderer-contents, ytm-browse ytm-section-list-renderer",
   };
+  // Signed out, Instagram's home route is a landing page in a <main> article
+  // with the log in button. Feed posts always link to their author; the
+  // landing page has no links, so it stays usable.
+  const signedOutLanding = (element) =>
+    site === "instagram" &&
+    element.matches("article") &&
+    !element.querySelector("a[href]");
   function render() {
     if (!document.documentElement) return;
     const unlocked = expiresAt > Date.now();
@@ -131,7 +138,7 @@
     const targets = new Set(
       blocked && selector
         ? [...document.querySelectorAll(selector)].filter(
-            (element) => element !== gate,
+            (element) => element !== gate && !signedOutLanding(element),
           )
         : [],
     );

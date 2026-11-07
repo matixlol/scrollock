@@ -35,6 +35,9 @@ final class AppModel {
   init() {
     session = sessions.load()?.session
     Self.shared = self
+    #if DEBUG
+      if Self.isDemo { applyDemo() }
+    #endif
   }
 
   /// After a break starts, go back to the app the person came for.
@@ -50,7 +53,23 @@ final class AppModel {
     leases[site].flatMap { $0.isActive() ? $0 : nil }
   }
 
+  #if DEBUG
+    /// `-demo` launch argument: sample feeds and a break, for simulator screenshots.
+    static let isDemo = ProcessInfo.processInfo.arguments.contains("-demo")
+    private static let demoCounts: [Site: Int] = [.instagram: 2, .youtube: 1, .x: 1]
+    private static let demoBreakEnds = Date.now.addingTimeInterval(12 * 60 + 4)
+
+    private func applyDemo() {
+      authorization = .approved
+      session = Session(token: "demo", user: TelegramUser(id: 1, name: "Mati", username: "matixlol"))
+      leases[.youtube] = Lease(id: "demo", site: .youtube, expiresAt: Self.demoBreakEnds)
+    }
+  #endif
+
   func selectedCount(for site: Site) -> Int {
+    #if DEBUG
+      if Self.isDemo { return Self.demoCounts[site] ?? 0 }
+    #endif
     let selection = selections[site] ?? FamilyActivitySelection()
     return selection.applicationTokens.count + selection.categoryTokens.count
   }
@@ -71,6 +90,9 @@ final class AppModel {
     if let request = shields.store.takeBreakRequest() { requestBreak(request) }
     Task { await checkNotifications() }
     if pairing != nil { pollPairing() }
+    #if DEBUG
+      if Self.isDemo { applyDemo() }
+    #endif
   }
 
   /// Opens the break form, or asks which feed when the block screen couldn't tell.
@@ -83,6 +105,9 @@ final class AppModel {
   /// "Take a break…" on the block screen only works through a notification.
   func checkNotifications() async {
     let center = UNUserNotificationCenter.current()
+    #if DEBUG
+      if Self.isDemo { return }
+    #endif
     if isAuthorized, await center.notificationSettings().authorizationStatus == .notDetermined {
       _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }

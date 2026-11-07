@@ -4,7 +4,8 @@ import WebKit
 
 /// Browses X, Instagram and YouTube inside Scrollock. While an app is locked,
 /// Screen Time also blocks its website in Safari, so this web view runs the
-/// Safari extension's feed blocking itself.
+/// Safari extension's feed blocking itself. The page fills the screen, with
+/// one floating pill for closing, going back and reloading.
 struct FeedBrowser: View {
   let model: AppModel
   let site: Site
@@ -12,28 +13,32 @@ struct FeedBrowser: View {
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    NavigationStack {
-      Group {
-        if let browser {
-          WebView(webView: browser.webView).ignoresSafeArea(edges: .bottom)
-        } else {
-          ProgressView()
-        }
-      }
-      .navigationTitle(site.displayName)
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-        ToolbarItemGroup(placement: .bottomBar) {
-          Button("Back", systemImage: "chevron.backward") { browser?.webView.goBack() }
-            .disabled(browser?.canGoBack != true)
-          Button("Forward", systemImage: "chevron.forward") { browser?.webView.goForward() }
-            .disabled(browser?.canGoForward != true)
-          Spacer()
-          Button("Reload", systemImage: "arrow.clockwise") { browser?.webView.reload() }
-        }
+    Group {
+      if let browser {
+        WebView(webView: browser.webView)
+      } else {
+        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      HStack(spacing: 2) {
+        PillButton(systemImage: "xmark", label: "Close") { dismiss() }
+        PillButton(systemImage: "chevron.backward", label: "Back") { browser?.webView.goBack() }
+          .disabled(browser?.canGoBack != true)
+        VStack(spacing: 1) {
+          Text(browser?.host ?? site.webURL.host() ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
+          LockBadge(model: model, site: site).font(.caption)
+        }
+        .frame(maxWidth: .infinity)
+        PillButton(systemImage: "arrow.clockwise", label: "Reload") { browser?.webView.reload() }
+      }
+      .padding(5)
+      .glassBackground(in: Capsule())
+      .padding(.horizontal, 16)
+      .padding(.top, 6)
+      .padding(.bottom, 2)
+    }
+    .background(Color(.systemBackground))
     .task {
       guard browser == nil else { return }
       do {
@@ -44,6 +49,44 @@ struct FeedBrowser: View {
         model.error = "Couldn't load Scrollock's feed blocker. Reinstall the app from TestFlight."
         dismiss()
       }
+    }
+    // Breaks that start or end elsewhere show or hide the feed right away.
+    .onChange(of: model.leases) { browser?.pushLeases() }
+  }
+}
+
+private struct PillButton: View {
+  let systemImage: String
+  let label: String
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: systemImage)
+        .font(.system(size: 16, weight: .semibold))
+        .frame(width: 42, height: 42)
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+  }
+}
+
+/// "Feed hidden", or the time left on a break.
+private struct LockBadge: View {
+  let model: AppModel
+  let site: Site
+
+  var body: some View {
+    if let lease = model.activeLease(for: site) {
+      Label {
+        Text(timerInterval: Date.now...lease.expiresAt, countsDown: true).monospacedDigit()
+      } icon: {
+        Image(systemName: "lock.open.fill")
+      }
+      .foregroundStyle(.orange)
+    } else {
+      Label("Feed hidden", systemImage: "lock.fill").foregroundStyle(.secondary)
     }
   }
 }
@@ -62,6 +105,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
   let webView: WKWebView
   private(set) var canGoBack = false
   private(set) var canGoForward = false
+  private(set) var host: String?
   @ObservationIgnored private let model: AppModel
   @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
@@ -93,6 +137,9 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
       webView.observe(\.canGoForward, options: [.initial, .new]) { [weak self] webView, _ in
         MainActor.assumeIsolated { self?.canGoForward = webView.canGoForward }
       },
+      webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
+        MainActor.assumeIsolated { self?.host = webView.url?.host()?.replacingOccurrences(of: "www.", with: "") }
+      },
     ]
   }
 
@@ -108,11 +155,14 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
       guard let url = ext.url(forResource: name, withExtension: nil) else { throw CocoaError(.fileNoSuchFile) }
       return try String(contentsOf: url, encoding: .utf8)
     }
-    let css = try JSONSerialization.data(withJSONObject: [try read("content.css")], options: .fragmentsAllowed)
+    let css = try JSONSerialization.data(withJSONObject: [try read("content.css")])
     return """
+      const scrollockListeners = [];
+      globalThis.scrollockLeasesChanged = (leases) =>
+        scrollockListeners.forEach((listener) => listener({ leases: { newValue: leases } }, "local"));
       globalThis.browser = {
         runtime: { sendMessage: (message) => webkit.messageHandlers.scrollock.postMessage(message) },
-        storage: { onChanged: { addListener() {} } },
+        storage: { onChanged: { addListener: (listener) => scrollockListeners.push(listener) } },
       };
       \(try read("rules.js"))
       \(try read("timer.js"))
@@ -147,6 +197,12 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     default:
       return nil
     }
+  }
+
+  /// Tells the page about breaks that started or ended outside it.
+  func pushLeases() {
+    webView.callAsyncJavaScript(
+      "globalThis.scrollockLeasesChanged?.(leases)", arguments: ["leases": leases()], in: nil, in: Self.world)
   }
 
   private func leases() -> [String: Any] {

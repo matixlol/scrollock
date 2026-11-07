@@ -8,10 +8,8 @@ struct SetupSection: View {
   @AppStorage("automationSetUp") private var automationSetUp = false
   @State private var showingAutomation = false
 
-  private var hasApps: Bool { Site.allCases.contains { model.selectedCount(for: $0) > 0 } }
-  private var complete: Bool {
-    model.isAuthorized && hasApps && model.session != nil && model.notificationsBypassFocus && automationSetUp
-  }
+  private var hasApps: Bool { model.configuredCount > 0 }
+  private var complete: Bool { model.setupProgress(automationSetUp: automationSetUp).isComplete }
 
   var body: some View {
     if !complete {
@@ -41,6 +39,28 @@ struct SetupSection: View {
         AutomationGuide { automationSetUp = true }
       }
     }
+  }
+}
+
+struct SetupProgress {
+  let done: Int
+  let total: Int
+  /// The first unfinished step, for a one-line summary.
+  let next: String?
+  var isComplete: Bool { done == total }
+}
+
+extension AppModel {
+  func setupProgress(automationSetUp: Bool) -> SetupProgress {
+    let steps: [(String, Bool)] = [
+      ("Allow Screen Time access", isAuthorized),
+      ("Choose apps to lock", configuredCount > 0),
+      ("Connect Telegram", session != nil),
+      (notificationsAllowed ? "Let breaks through Focus" : "Turn on notifications", notificationsBypassFocus),
+      ("Skip the block screen", automationSetUp),
+    ]
+    return SetupProgress(
+      done: steps.filter(\.1).count, total: steps.count, next: steps.first { !$0.1 }?.0)
   }
 }
 

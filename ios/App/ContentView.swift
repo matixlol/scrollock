@@ -4,83 +4,98 @@ import SwiftUI
 
 struct ContentView: View {
   @Bindable var model: AppModel
-  @State private var picking: Site?
+  @AppStorage("homeStyle") private var homeStyle = HomeStyle.icons
   @State private var browsing: Site?
 
   var body: some View {
-    NavigationStack {
-      Form {
-        SetupSection(model: model)
+    HomeScreen(model: model, style: homeStyle) { browsing = $0 }
+    .confirmationDialog("Take a break from…", isPresented: $model.choosingBreakSite, titleVisibility: .visible) {
+      ForEach(Site.allCases.filter { model.selectedCount(for: $0) > 0 && model.activeLease(for: $0) == nil }) { site in
+        Button(site.displayName) { model.breakSite = site }
+      }
+    }
+    .onChange(of: model.breakSite) { _, site in
+      // A break request from a notification replaces an open browser.
+      if site != nil { browsing = nil }
+    }
+    .fullScreenCover(item: $browsing) { site in
+      FeedBrowser(model: model, site: site)
+    }
+    .fullScreenCover(item: $model.breakSite) { site in
+      BreakForm(model: model, site: site)
+    }
+    .alert("Scrollock", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(model.error ?? "")
+    }
+    #if DEBUG
+      // `-browse instagram` opens the browser at launch, for simulator screenshots.
+      .onAppear { browsing = UserDefaults.standard.string(forKey: "browse").flatMap(Site.init(rawValue:)) }
+    #endif
+  }
+}
 
-        if !model.isAuthorized {
-          Section {
-            Button("Allow Screen Time access") { Task { await model.requestAuthorization() } }
-          } header: {
-            Text("Block apps")
-          } footer: {
-            Text("Scrollock uses Screen Time to lock the apps you choose. Your choices stay on this iPhone, and app usage is never monitored or reported.")
-          }
-        } else {
-          Section {
-            ForEach(Site.allCases) { site in
-              SiteRow(model: model, site: site) { picking = site }
-            }
-          } header: {
-            Text("Locked apps")
-          } footer: {
-            Text("Choose the apps to lock for each feed. A break unlocks them only for the time you choose, and your group sees your name, the feed, the duration and your reason.")
-          }
+/// Everything that isn't day-to-day: setup, which apps to lock, Telegram and design.
+struct SettingsForm: View {
+  let model: AppModel
+  @State private var picking: Site?
+  @AppStorage("homeStyle") private var homeStyle = HomeStyle.icons
+
+  var body: some View {
+    Form {
+      SetupSection(model: model)
+
+      if !model.isAuthorized {
+        Section {
+          Button("Allow Screen Time access") { Task { await model.requestAuthorization() } }
+        } header: {
+          Text("Block apps")
+        } footer: {
+          Text("Scrollock uses Screen Time to lock the apps you choose. Your choices stay on this iPhone, and app usage is never monitored or reported.")
         }
-
+      } else {
         Section {
           ForEach(Site.allCases) { site in
-            Button("Open \(site.displayName)") { browsing = site }
+            SiteRow(model: model, site: site) { picking = site }
           }
         } header: {
-          Text("Browse without feeds")
+          Text("Locked apps")
         } footer: {
-          Text("While an app is locked, iOS also blocks its website in Safari. Browse it here with the feed hidden. Unblocking a feed here also unlocks its app.")
+          Text("While an app is locked, iOS also blocks its website in Safari, so browse it in Scrollock instead. A break unlocks the app only for the time you choose, and your group sees your name, the feed, the duration and your reason.")
         }
+      }
 
-        TelegramSection(model: model)
+      TelegramSection(model: model)
 
-        Section {
-          Text("Enable Scrollock in Settings → Apps → Safari → Extensions and allow it on X, Instagram and YouTube.")
-        } header: {
-          Text("Safari")
-        } footer: {
-          Text("Scrollock is cooperative accountability, not parental control: you can always remove apps from a list, turn off Screen Time access or delete the app.")
+      Section("Design") {
+        Picker("Home screen", selection: $homeStyle) {
+          ForEach(HomeStyle.allCases) { Text($0.title).tag($0) }
         }
       }
-      .navigationTitle("Scrollock")
-      .sheet(item: $picking) { site in
-        AppPicker(site: site, selection: model.selections[site] ?? FamilyActivitySelection()) {
-          model.setSelection($0, for: site)
-        }
+
+      Section {
+        Text("Enable Scrollock in Settings → Apps → Safari → Extensions and allow it on X, Instagram and YouTube.")
+      } header: {
+        Text("Safari")
+      } footer: {
+        Text("Scrollock is cooperative accountability, not parental control: you can always remove apps from a list, turn off Screen Time access or delete the app.")
       }
-      .confirmationDialog("Take a break from…", isPresented: $model.choosingBreakSite, titleVisibility: .visible) {
-        ForEach(Site.allCases.filter { model.selectedCount(for: $0) > 0 && model.activeLease(for: $0) == nil }) { site in
-          Button(site.displayName) { model.breakSite = site }
-        }
+    }
+    .appPicker(model: model, site: $picking)
+  }
+}
+
+extension View {
+  func appPicker(model: AppModel, site: Binding<Site?>) -> some View {
+    sheet(item: site) { site in
+      AppPicker(site: site, selection: model.selections[site] ?? FamilyActivitySelection()) {
+        model.setSelection($0, for: site)
       }
-      .onChange(of: model.breakSite) { _, site in
-        // A break request from a notification replaces any open app picker or browser.
-        if site != nil {
-          picking = nil
-          browsing = nil
-        }
-      }
-      .fullScreenCover(item: $browsing) { site in
-        FeedBrowser(model: model, site: site)
-      }
-      .fullScreenCover(item: $model.breakSite) { site in
-        BreakForm(model: model, site: site)
-      }
-      .alert("Scrollock", isPresented: .init(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
-        Button("OK", role: .cancel) {}
-      } message: {
-        Text(model.error ?? "")
-      }
+    }
+    .onChange(of: model.breakSite) { _, breakSite in
+      // A break request from a notification replaces an open app picker.
+      if breakSite != nil { site.wrappedValue = nil }
     }
   }
 }
@@ -158,7 +173,7 @@ struct AppPicker: View {
 
   var body: some View {
     NavigationStack {
-      FamilyActivityPicker(headerText: "Choose the apps to lock for \(site.displayName). Websites stay open in Safari with the feed hidden.", selection: $selection)
+      FamilyActivityPicker(headerText: "Choose the apps to lock for \(site.displayName)", selection: $selection)
         .navigationTitle(site.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
