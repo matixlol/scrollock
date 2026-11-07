@@ -6,7 +6,6 @@ import SwiftUI
 /// feed's menu. Everything else is behind the gear.
 struct HomeScreen: View {
   let model: AppModel
-  let style: HomeStyle
   let browse: (Site) -> Void
   @State private var showingSettings = false
   @State private var picking: Site?
@@ -20,24 +19,13 @@ struct HomeScreen: View {
           if !progress.isComplete {
             SetupBanner(progress: progress) { showingSettings = true }
           }
-          switch style {
-          case .icons:
-            IconsPanel(model: model, browse: browse) { picking = $0 }
-            BreakList(model: model)
-          case .iconButtons:
-            IconButtonsPanel(model: model, browse: browse) { picking = $0 }
-          case .widgets:
-            Widgets(model: model, browse: browse) { picking = $0 }
-          }
-          Text(
-            style == .iconButtons
-              ? "Tap an icon to browse it without the feed."
-              : "Tap a feed to browse it without the feed. Touch and hold for breaks and apps."
-          )
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-          .padding(.horizontal)
+          IconsPanel(model: model, browse: browse) { picking = $0 }
+          BreakList(model: model)
+          Text("Tap a feed to browse it without the feed. Touch and hold for breaks and apps.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal)
         }
         .padding(.horizontal)
         .padding(.bottom)
@@ -166,8 +154,6 @@ private struct Panel<Content: View>: View {
   }
 }
 
-// MARK: - Icons
-
 private struct IconsPanel: View {
   let model: AppModel
   let browse: (Site) -> Void
@@ -217,116 +203,5 @@ private struct BreakList: View {
       .padding(14)
       .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
-  }
-}
-
-// MARK: - Icons + buttons
-
-private struct IconButtonsPanel: View {
-  let model: AppModel
-  let browse: (Site) -> Void
-  let pick: (Site) -> Void
-
-  var body: some View {
-    Panel {
-      HStack(alignment: .top) {
-        ForEach(Site.allCases) { site in
-          VStack(spacing: 6) {
-            Button { browse(site) } label: {
-              VStack(spacing: 6) {
-                BadgedIcon(model: model, site: site).padding(.bottom, 4)
-                Text(site.displayName).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                ShortStatus(model: model, site: site).font(.caption)
-              }
-            }
-            .buttonStyle(.plain)
-            .contextMenu { FeedActions(model: model, site: site, browse: browse, pick: pick) }
-            action(site).padding(.top, 6)
-          }
-          .frame(maxWidth: .infinity)
-        }
-      }
-    }
-  }
-
-  @ViewBuilder private func action(_ site: Site) -> some View {
-    Group {
-      if model.activeLease(for: site) != nil {
-        Button("Lock now") { Task { await model.lockNow(site) } }.tint(.orange)
-      } else if model.selectedCount(for: site) > 0 {
-        Button("Break") { model.requestBreak(site) }
-      } else {
-        Button("Set up") { pick(site) }
-      }
-    }
-    .buttonStyle(.bordered)
-    .buttonBorderShape(.capsule)
-    .controlSize(.small)
-    .font(.footnote.weight(.semibold))
-  }
-}
-
-// MARK: - Widgets
-
-private struct Widgets: View {
-  let model: AppModel
-  let browse: (Site) -> Void
-  let pick: (Site) -> Void
-
-  var body: some View {
-    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible())], spacing: 14) {
-      summary
-      ForEach(Site.allCases) { site in
-        Button { browse(site) } label: { widget(site) }
-          .buttonStyle(.plain)
-          .contextMenu { FeedActions(model: model, site: site, browse: browse, pick: pick) }
-      }
-    }
-  }
-
-  private var summary: some View {
-    let configured = model.configuredCount
-    let locked = model.lockedCount
-    let allLocked = configured > 0 && locked == configured
-    return VStack(alignment: .leading) {
-      Image(systemName: allLocked ? "lock.fill" : "lock.open.fill")
-        .font(.title.weight(.semibold))
-        .foregroundStyle(allLocked ? Color.accentColor : .orange)
-      Spacer()
-      Text(configured == 0 ? "None" : "\(locked) of \(configured)").font(.title2.bold())
-      Text("feeds locked").font(.subheadline).foregroundStyle(.secondary)
-    }
-    .widgetStyle()
-  }
-
-  private func widget(_ site: Site) -> some View {
-    let onBreak = model.activeLease(for: site) != nil
-    return VStack(alignment: .leading) {
-      HStack(alignment: .top) {
-        SiteIcon(site: site, size: 46)
-        Spacer()
-        Image(systemName: onBreak ? "timer" : "lock.fill")
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(onBreak ? .orange : .secondary)
-          .opacity(model.selectedCount(for: site) > 0 ? 1 : 0)
-      }
-      Spacer()
-      Text(site.displayName).font(.headline).foregroundStyle(.primary)
-      ShortStatus(model: model, site: site).font(.subheadline)
-    }
-    .widgetStyle(tint: onBreak ? .orange : nil)
-  }
-}
-
-extension View {
-  fileprivate func widgetStyle(tint: Color? = nil) -> some View {
-    padding(16)
-      .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
-      .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-      .overlay {
-        if let tint {
-          RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(tint.opacity(0.5), lineWidth: 2)
-        }
-      }
   }
 }

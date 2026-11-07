@@ -1,19 +1,6 @@
 import ScrollockKit
 import SwiftUI
 
-/// Home screen layouts to choose from in Settings → Design.
-enum HomeStyle: String, CaseIterable, Identifiable {
-  case icons, iconButtons, widgets
-  var id: String { rawValue }
-  var title: String {
-    switch self {
-    case .icons: "Icons"
-    case .iconButtons: "Icons + buttons"
-    case .widgets: "Widgets"
-    }
-  }
-}
-
 /// A feed's app icon, drawn like the real one: the brand glyph (from Simple
 /// Icons, CC0) on the app's background.
 struct SiteIcon: View {
@@ -56,29 +43,7 @@ struct SiteIcon: View {
   }
 }
 
-/// "Locked", "Unlocked · 12:04" or "No apps locked", for one feed.
-struct FeedStatusText: View {
-  let model: AppModel
-  let site: Site
-
-  var body: some View {
-    if let lease = model.activeLease(for: site) {
-      (Text("Unlocked · ") + Text(timerInterval: Date.now...lease.expiresAt, countsDown: true))
-        .foregroundStyle(.orange)
-    } else if model.selectedCount(for: site) > 0 {
-      Text(model.selectedCount(for: site) == 1 ? "Locked · 1 app" : "Locked · \(model.selectedCount(for: site)) apps")
-        .foregroundStyle(.secondary)
-    } else {
-      Text("No apps locked").foregroundStyle(.secondary)
-    }
-  }
-}
-
 extension AppModel {
-  var lockedCount: Int {
-    Site.allCases.filter { selectedCount(for: $0) > 0 && activeLease(for: $0) == nil }.count
-  }
-
   var configuredCount: Int { Site.allCases.filter { selectedCount(for: $0) > 0 }.count }
 }
 

@@ -4,11 +4,10 @@ import SwiftUI
 
 struct ContentView: View {
   @Bindable var model: AppModel
-  @AppStorage("homeStyle") private var homeStyle = HomeStyle.icons
   @State private var browsing: Site?
 
   var body: some View {
-    HomeScreen(model: model, style: homeStyle) { browsing = $0 }
+    HomeScreen(model: model) { browsing = $0 }
     .confirmationDialog("Take a break from…", isPresented: $model.choosingBreakSite, titleVisibility: .visible) {
       ForEach(Site.allCases.filter { model.selectedCount(for: $0) > 0 && model.activeLease(for: $0) == nil }) { site in
         Button(site.displayName) { model.breakSite = site }
@@ -41,7 +40,6 @@ struct SettingsForm: View {
   let model: AppModel
   @State private var picking: Site?
   @State private var showingAutomation = false
-  @AppStorage("homeStyle") private var homeStyle = HomeStyle.icons
   @AppStorage("automationSetUp") private var automationSetUp = false
 
   var body: some View {
@@ -70,11 +68,6 @@ struct SettingsForm: View {
 
       TelegramSection(model: model)
 
-      Section("Design") {
-        Picker("Home screen", selection: $homeStyle) {
-          ForEach(HomeStyle.allCases) { Text($0.title).tag($0) }
-        }
-      }
 
       Section {
         Text("Enable Scrollock in Settings → Apps → Safari → Extensions and allow it on X, Instagram and YouTube.")
