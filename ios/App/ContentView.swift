@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
   @Bindable var model: AppModel
   @State private var picking: Site?
+  @State private var browsing: Site?
 
   var body: some View {
     NavigationStack {
@@ -31,6 +32,16 @@ struct ContentView: View {
           }
         }
 
+        Section {
+          ForEach(Site.allCases) { site in
+            Button("Open \(site.displayName)") { browsing = site }
+          }
+        } header: {
+          Text("Browse without feeds")
+        } footer: {
+          Text("While an app is locked, iOS also blocks its website in Safari. Browse it here with the feed hidden. Unblocking a feed here also unlocks its app.")
+        }
+
         TelegramSection(model: model)
 
         Section {
@@ -53,8 +64,14 @@ struct ContentView: View {
         }
       }
       .onChange(of: model.breakSite) { _, site in
-        // A break request from a notification replaces any open app picker.
-        if site != nil { picking = nil }
+        // A break request from a notification replaces any open app picker or browser.
+        if site != nil {
+          picking = nil
+          browsing = nil
+        }
+      }
+      .fullScreenCover(item: $browsing) { site in
+        FeedBrowser(model: model, site: site)
       }
       .fullScreenCover(item: $model.breakSite) { site in
         BreakForm(model: model, site: site)

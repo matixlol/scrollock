@@ -14,6 +14,29 @@ public enum Site: String, CaseIterable, Codable, Identifiable, Sendable {
     case .youtube: "YouTube"
     }
   }
+
+  /// Matches the extension's `ScrollockRules.siteForHost`.
+  public init?(host: String) {
+    let host = host.lowercased()
+    func matches(_ domain: String) -> Bool { host == domain || host.hasSuffix("." + domain) }
+    if matches("x.com") || matches("twitter.com") {
+      self = .x
+    } else if matches("instagram.com") {
+      self = .instagram
+    } else if matches("youtube.com") {
+      self = .youtube
+    } else {
+      return nil
+    }
+  }
+
+  public var webURL: URL {
+    switch self {
+    case .x: URL(string: "https://x.com/")!
+    case .instagram: URL(string: "https://www.instagram.com/")!
+    case .youtube: URL(string: "https://m.youtube.com/")!
+    }
+  }
 }
 
 public struct TelegramUser: Codable, Equatable, Sendable {

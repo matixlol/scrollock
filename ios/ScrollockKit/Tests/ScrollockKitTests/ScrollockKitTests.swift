@@ -167,3 +167,12 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(store.recentShieldShown(now: now.addingTimeInterval(5)) == .instagram)
   #expect(store.recentShieldShown(now: now.addingTimeInterval(3600)) == nil)
 }
+
+@Test func sitesMatchHostsLikeTheExtension() {
+  #expect(Site(host: "x.com") == .x)
+  #expect(Site(host: "mobile.twitter.com") == .x)
+  #expect(Site(host: "www.instagram.com") == .instagram)
+  #expect(Site(host: "m.youtube.com") == .youtube)
+  #expect(Site(host: "notyoutube.com") == nil)
+  #expect(Site(host: "x.com.example") == nil)
+}
