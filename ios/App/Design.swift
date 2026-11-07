@@ -14,45 +14,45 @@ enum HomeStyle: String, CaseIterable, Identifiable {
   }
 }
 
-extension Site {
-  var tint: Color {
-    switch self {
-    case .x: Color(white: 0.08)
-    case .instagram: Color(red: 0.88, green: 0.19, blue: 0.42)
-    case .youtube: Color(red: 0.9, green: 0.13, blue: 0.09)
-    }
-  }
-
-  var background: AnyShapeStyle {
-    switch self {
-    case .instagram:
-      AnyShapeStyle(
-        LinearGradient(
-          colors: [Color(red: 0.98, green: 0.63, blue: 0.25), tint, Color(red: 0.51, green: 0.23, blue: 0.71)],
-          startPoint: .bottomLeading, endPoint: .topTrailing))
-    default: AnyShapeStyle(tint)
-    }
-  }
-}
-
+/// A feed's app icon, drawn like the real one: the brand glyph (from Simple
+/// Icons, CC0) on the app's background.
 struct SiteIcon: View {
   let site: Site
   var size: CGFloat = 32
 
   var body: some View {
-    RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
-      .fill(site.background)
-      .frame(width: size, height: size)
-      .overlay {
-        Group {
-          switch site {
-          case .x: Text("𝕏").font(.system(size: size * 0.55, weight: .bold))
-          case .instagram: Image(systemName: "camera").font(.system(size: size * 0.45, weight: .semibold))
-          case .youtube: Image(systemName: "play.fill").font(.system(size: size * 0.42))
-          }
-        }
-        .foregroundStyle(.white)
+    let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+    ZStack {
+      switch site {
+      case .x:
+        shape.fill(.black)
+        glyph(scale: 0.5).foregroundStyle(.white)
+      case .instagram:
+        // Instagram's warm-to-purple gradient, brightest in the bottom-left.
+        shape.fill(
+          RadialGradient(
+            colors: [
+              Color(red: 1, green: 0.84, blue: 0.36), Color(red: 0.98, green: 0.45, blue: 0.16),
+              Color(red: 0.86, green: 0.15, blue: 0.48), Color(red: 0.53, green: 0.2, blue: 0.85),
+            ],
+            center: UnitPoint(x: 0.25, y: 1.05), startRadius: 0, endRadius: size * 1.25))
+        glyph(scale: 0.6).foregroundStyle(.white)
+      case .youtube:
+        shape.fill(.white)
+        shape.strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+        glyph(scale: 0.66).foregroundStyle(Color(red: 1, green: 0, blue: 0))
       }
+    }
+    .frame(width: size, height: size)
+    .accessibilityHidden(true)
+  }
+
+  private func glyph(scale: CGFloat) -> some View {
+    Image("Glyph-\(site.rawValue)")
+      .resizable()
+      .renderingMode(.template)
+      .aspectRatio(contentMode: .fit)
+      .frame(width: size * scale, height: size * scale)
   }
 }
 

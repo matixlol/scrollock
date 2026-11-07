@@ -5,8 +5,10 @@ import SwiftUI
 /// It hides once every step is done.
 struct SetupSection: View {
   let model: AppModel
+  /// Shows the automation guide. The sheet lives outside the Form: a sheet
+  /// attached to a section inside a presented Form dismisses itself.
+  let showAutomation: () -> Void
   @AppStorage("automationSetUp") private var automationSetUp = false
-  @State private var showingAutomation = false
 
   private var hasApps: Bool { model.configuredCount > 0 }
   private var complete: Bool { model.setupProgress(automationSetUp: automationSetUp).isComplete }
@@ -31,12 +33,9 @@ struct SetupSection: View {
         Step(
           done: automationSetUp, title: "Skip the block screen (optional)",
           detail: "A Shortcuts automation opens the break form as soon as a locked app opens."
-        ) { showingAutomation = true }
+        ) { showAutomation() }
       } header: {
         Text("Setup")
-      }
-      .sheet(isPresented: $showingAutomation) {
-        AutomationGuide { automationSetUp = true }
       }
     }
   }

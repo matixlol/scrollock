@@ -40,11 +40,13 @@ struct ContentView: View {
 struct SettingsForm: View {
   let model: AppModel
   @State private var picking: Site?
+  @State private var showingAutomation = false
   @AppStorage("homeStyle") private var homeStyle = HomeStyle.icons
+  @AppStorage("automationSetUp") private var automationSetUp = false
 
   var body: some View {
     Form {
-      SetupSection(model: model)
+      SetupSection(model: model) { showingAutomation = true }
 
       if !model.isAuthorized {
         Section {
@@ -83,6 +85,9 @@ struct SettingsForm: View {
       }
     }
     .appPicker(model: model, site: $picking)
+    .sheet(isPresented: $showingAutomation) {
+      AutomationGuide { automationSetUp = true }
+    }
   }
 }
 

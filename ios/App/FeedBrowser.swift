@@ -10,35 +10,41 @@ struct FeedBrowser: View {
   let model: AppModel
   let site: Site
   @State private var browser: BrowserModel?
+  @State private var barHeight: CGFloat = 0
+  @State private var keyboardShown = false
   @Environment(\.dismiss) private var dismiss
 
+  /// How much of the page's bottom the pill covers. With the keyboard up the
+  /// pill hides and the web view makes room for the keyboard itself.
+  private var obscuredBottom: CGFloat { keyboardShown ? 0 : barHeight }
+
   var body: some View {
-    Group {
-      if let browser {
-        WebView(webView: browser.webView)
-      } else {
-        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-    }
-    .safeAreaInset(edge: .bottom, spacing: 0) {
-      HStack(spacing: 2) {
-        PillButton(systemImage: "xmark", label: "Close") { dismiss() }
-        PillButton(systemImage: "chevron.backward", label: "Back") { browser?.webView.goBack() }
-          .disabled(browser?.canGoBack != true)
-        VStack(spacing: 1) {
-          Text(browser?.host ?? site.webURL.host() ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
-          LockBadge(model: model, site: site).font(.caption)
+    ZStack(alignment: .bottom) {
+      Group {
+        if let browser {
+          WebView(webView: browser.webView, obscuredBottom: obscuredBottom)
+        } else {
+          ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        PillButton(systemImage: "arrow.clockwise", label: "Reload") { browser?.webView.reload() }
       }
-      .padding(5)
-      .glassBackground(in: Capsule())
-      .padding(.horizontal, 16)
-      .padding(.top, 6)
-      .padding(.bottom, 2)
+      // The page scrolls behind the pill and the home indicator, like Safari.
+      .ignoresSafeArea(edges: .bottom)
+
+      if !keyboardShown {
+        bar
+          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+          .transition(.opacity)
+      }
     }
+    .ignoresSafeArea(.keyboard)
+    .animation(.easeOut(duration: 0.2), value: keyboardShown)
     .background(Color(.systemBackground))
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+      keyboardShown = true
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+      keyboardShown = false
+    }
     .task {
       guard browser == nil else { return }
       do {
@@ -52,6 +58,24 @@ struct FeedBrowser: View {
     }
     // Breaks that start or end elsewhere show or hide the feed right away.
     .onChange(of: model.leases) { browser?.pushLeases() }
+  }
+
+  private var bar: some View {
+    HStack(spacing: 2) {
+      PillButton(systemImage: "xmark", label: "Close") { dismiss() }
+      PillButton(systemImage: "chevron.backward", label: "Back") { browser?.webView.goBack() }
+        .disabled(browser?.canGoBack != true)
+      VStack(spacing: 1) {
+        Text(browser?.host ?? site.webURL.host() ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
+        LockBadge(model: model, site: site).font(.caption)
+      }
+      .frame(maxWidth: .infinity)
+      PillButton(systemImage: "arrow.clockwise", label: "Reload") { browser?.webView.reload() }
+    }
+    .padding(5)
+    .glassBackground(in: Capsule())
+    .padding(.horizontal, 16)
+    .padding(.bottom, 2)
   }
 }
 
@@ -91,10 +115,32 @@ private struct LockBadge: View {
   }
 }
 
-private struct WebView: UIViewRepresentable {
+/// Hosts the web view in a controller so the pill can count as unsafe area,
+/// the way Safari treats its toolbar. The page scrolls behind the pill, while
+/// bars fixed to the page's bottom (and `env(safe-area-inset-bottom)`) stay
+/// above it.
+private struct WebView: UIViewControllerRepresentable {
   let webView: WKWebView
-  func makeUIView(context: Context) -> WKWebView { webView }
-  func updateUIView(_ view: WKWebView, context: Context) {}
+  let obscuredBottom: CGFloat
+
+  func makeUIViewController(context: Context) -> UIViewController {
+    let controller = UIViewController()
+    webView.translatesAutoresizingMaskIntoConstraints = false
+    controller.view.addSubview(webView)
+    NSLayoutConstraint.activate([
+      webView.topAnchor.constraint(equalTo: controller.view.topAnchor),
+      webView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+      webView.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+      webView.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+    ])
+    return controller
+  }
+
+  func updateUIViewController(_ controller: UIViewController, context: Context) {
+    if controller.additionalSafeAreaInsets.bottom != obscuredBottom {
+      controller.additionalSafeAreaInsets.bottom = obscuredBottom
+    }
+  }
 }
 
 @MainActor @Observable
@@ -127,6 +173,8 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     webView.navigationDelegate = self
     webView.uiDelegate = self
     webView.allowsBackForwardNavigationGestures = true
+    webView.scrollView.keyboardDismissMode = .interactive
+    webView.removeInputAccessoryBar()
     #if DEBUG
       webView.isInspectable = true
     #endif
@@ -244,5 +292,29 @@ private final class MessageHandler: NSObject, WKScriptMessageHandlerWithReply {
   ) async -> (Any?, String?) {
     guard let browser else { return (nil, "Scrollock closed.") }
     return (await browser.handle(message.body, from: message.frameInfo.request.url), nil)
+  }
+}
+
+extension WKWebView {
+  /// Removes the bar with previous/next arrows above the keyboard. WebKit has no
+  /// setting for it, so this swaps the content view for a subclass whose
+  /// `inputAccessoryView` is nil (the approach of Cordova's keyboard plugin).
+  fileprivate func removeInputAccessoryBar() {
+    guard
+      let content = scrollView.subviews.first(where: { NSStringFromClass(type(of: $0)).hasPrefix("WKContent") })
+    else { return }
+    let base: AnyClass = type(of: content)
+    let name = "\(NSStringFromClass(base))_ScrollockNoAccessory"
+    var subclass: AnyClass? = NSClassFromString(name)
+    if subclass == nil, let created = objc_allocateClassPair(base, name, 0) {
+      let selector = #selector(getter: UIResponder.inputAccessoryView)
+      let nothing: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+      if let method = class_getInstanceMethod(base, selector) {
+        class_addMethod(created, selector, imp_implementationWithBlock(nothing), method_getTypeEncoding(method))
+      }
+      objc_registerClassPair(created)
+      subclass = created
+    }
+    if let subclass { object_setClass(content, subclass) }
   }
 }
