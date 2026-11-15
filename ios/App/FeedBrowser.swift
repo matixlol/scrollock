@@ -14,26 +14,29 @@ struct FeedBrowser: View {
   @State private var keyboardShown = false
   @Environment(\.dismiss) private var dismiss
 
-  /// How much of the page's bottom the pill covers. With the keyboard up the
-  /// pill hides and the web view makes room for the keyboard itself.
-  private var obscuredBottom: CGFloat { keyboardShown ? 0 : barHeight }
-
   var body: some View {
-    ZStack(alignment: .bottom) {
-      Group {
-        if let browser {
-          WebView(webView: browser.webView, obscuredBottom: obscuredBottom)
-        } else {
-          ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+    Group {
+      if #available(iOS 26, *) {
+        // The page scrolls behind the pill and the home indicator, like
+        // Safari. The pill counts as obscured, so bars fixed to the page's
+        // bottom stay above it.
+        ZStack(alignment: .bottom) {
+          page.ignoresSafeArea(edges: .bottom)
+          if !keyboardShown {
+            bar
+              .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.bottom } action: {
+                barHeight = $0
+              }
+              .transition(.opacity)
+          }
         }
-      }
-      // The page scrolls behind the pill and the home indicator, like Safari.
-      .ignoresSafeArea(edges: .bottom)
-
-      if !keyboardShown {
-        bar
-          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
-          .transition(.opacity)
+      } else {
+        // Without `obscuredContentInsets` the page would put its bottom bars
+        // under the pill, so it ends at the pill instead.
+        VStack(spacing: 0) {
+          page
+          if !keyboardShown { bar.transition(.opacity) }
+        }
       }
     }
     .ignoresSafeArea(.keyboard)
@@ -60,6 +63,16 @@ struct FeedBrowser: View {
     .onChange(of: model.leases) { browser?.pushLeases() }
   }
 
+  /// With the keyboard up the pill hides and the web view makes room for the
+  /// keyboard itself.
+  @ViewBuilder private var page: some View {
+    if let browser {
+      WebView(webView: browser.webView, obscuredBottom: keyboardShown ? 0 : barHeight)
+    } else {
+      ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
   private var bar: some View {
     HStack(spacing: 2) {
       PillButton(systemImage: "xmark", label: "Close") { dismiss() }
@@ -75,6 +88,7 @@ struct FeedBrowser: View {
     .padding(5)
     .glassBackground(in: Capsule())
     .padding(.horizontal, 16)
+    .padding(.top, 6)
     .padding(.bottom, 2)
   }
 }
@@ -115,31 +129,27 @@ private struct LockBadge: View {
   }
 }
 
-/// Hosts the web view in a controller so the pill can count as unsafe area,
-/// the way Safari treats its toolbar. The page scrolls behind the pill, while
-/// bars fixed to the page's bottom (and `env(safe-area-inset-bottom)`) stay
-/// above it.
-private struct WebView: UIViewControllerRepresentable {
+/// Tells WebKit how much of the page's bottom the pill covers, the way Safari
+/// does for its toolbar. WebKit then lays out bars fixed to the page's bottom
+/// above it and lets the page scroll past it. Safe area wouldn't work: WebKit
+/// leaves the bottom safe area to the page (`env(safe-area-inset-bottom)`),
+/// which X, Instagram and YouTube only pad for the home indicator.
+private struct WebView: UIViewRepresentable {
   let webView: WKWebView
   let obscuredBottom: CGFloat
 
-  func makeUIViewController(context: Context) -> UIViewController {
-    let controller = UIViewController()
-    webView.translatesAutoresizingMaskIntoConstraints = false
-    controller.view.addSubview(webView)
-    NSLayoutConstraint.activate([
-      webView.topAnchor.constraint(equalTo: controller.view.topAnchor),
-      webView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
-      webView.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
-      webView.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
-    ])
-    return controller
-  }
+  func makeUIView(context: Context) -> WKWebView { webView }
 
-  func updateUIViewController(_ controller: UIViewController, context: Context) {
-    if controller.additionalSafeAreaInsets.bottom != obscuredBottom {
-      controller.additionalSafeAreaInsets.bottom = obscuredBottom
-    }
+  func updateUIView(_ view: WKWebView, context: Context) {
+    guard #available(iOS 26, *), view.obscuredContentInsets.bottom != obscuredBottom else { return }
+    view.obscuredContentInsets.bottom = obscuredBottom
+    // Obscured insets don't change how far the page scrolls, so the scroll
+    // view makes room for the pill too. WebKit otherwise adds the home
+    // indicator for some pages and nothing for others.
+    let scrollView = view.scrollView
+    scrollView.contentInsetAdjustmentBehavior = .never
+    scrollView.contentInset.bottom = obscuredBottom
+    scrollView.verticalScrollIndicatorInsets.bottom = obscuredBottom
   }
 }
 
