@@ -63,7 +63,9 @@ extension AppModel {
 /// Settings section for registering and inspecting Web Push subscriptions.
 struct PushSpikeSection: View {
   let model: AppModel
-  @State private var showing: Site?
+  /// Shows captured pushes. The sheet lives outside the Form: a sheet attached
+  /// to a Section inside a presented Form dismisses itself.
+  let showPushes: (Site) -> Void
   @State private var registering: Site?
   @State private var registrationError: String?
 
@@ -74,7 +76,7 @@ struct PushSpikeSection: View {
           Text(site.displayName)
           Spacer()
           if model.pushSubscriptions.contains(site) {
-            Button("Captured pushes") { showing = site }.buttonStyle(.borderless)
+            Button("Captured pushes") { showPushes(site) }.buttonStyle(.borderless)
           } else if registering == site {
             ProgressView()
           } else {
@@ -104,11 +106,10 @@ struct PushSpikeSection: View {
         "Subscribe registers Scrollock's relay directly with your X or Instagram login. Pushes are encrypted end-to-end to keys on this iPhone and decrypted here."
       )
     }
-    .sheet(item: $showing) { site in CapturedPushList(model: model, site: site) }
   }
 }
 
-private struct CapturedPushList: View {
+struct CapturedPushList: View {
   let model: AppModel
   let site: Site
   @State private var pushes: [String]?

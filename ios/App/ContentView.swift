@@ -57,6 +57,7 @@ struct SettingsForm: View {
   let model: AppModel
   @State private var picking: Site?
   @State private var showingAutomation = false
+  @State private var showingPushes: Site?
   @AppStorage("automationSetUp") private var automationSetUp = false
 
   var body: some View {
@@ -84,7 +85,7 @@ struct SettingsForm: View {
       }
 
       TelegramSection(model: model)
-      PushSpikeSection(model: model)
+      PushSpikeSection(model: model) { showingPushes = $0 }
 
 
       Section {
@@ -98,6 +99,9 @@ struct SettingsForm: View {
     .appPicker(model: model, site: $picking)
     .sheet(isPresented: $showingAutomation) {
       AutomationGuide { automationSetUp = true }
+    }
+    .sheet(item: $showingPushes) { site in
+      CapturedPushList(model: model, site: site)
     }
   }
 }

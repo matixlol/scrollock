@@ -197,12 +197,14 @@ enum MessageFetcher {
       ]
       request = URLRequest(url: URL(string: "https://x.com/i/api/1.1/notifications/settings/login.json")!)
       request.httpMethod = "POST"
-      request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+      request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes])
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      request.setValue("application/json", forHTTPHeaderField: "Accept")
       request.setValue("Bearer \(xWebBearer)", forHTTPHeaderField: "Authorization")
       request.setValue(csrf, forHTTPHeaderField: "X-Csrf-Token")
       request.setValue("OAuth2Session", forHTTPHeaderField: "X-Twitter-Auth-Type")
       request.setValue("yes", forHTTPHeaderField: "X-Twitter-Active-User")
+      request.setValue("en", forHTTPHeaderField: "X-Twitter-Client-Language")
       request.setValue("https://x.com/", forHTTPHeaderField: "Referer")
       request.setValue("https://x.com", forHTTPHeaderField: "Origin")
       request.setValue(desktopUserAgent, forHTTPHeaderField: "User-Agent")
@@ -211,10 +213,12 @@ enum MessageFetcher {
     }
     applyCookies(cookies, to: &request)
     let (data, response) = try await session.data(for: request)
-    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+    let http = response as? HTTPURLResponse
+    let status = http?.statusCode ?? 0
     guard (200..<300).contains(status) else {
-      let detail = String(decoding: data, as: UTF8.self).prefix(120)
-      throw ScrollockError.server("\(site.displayName) rejected push registration (HTTP \(status)): \(detail)")
+      let detail = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)
+      let suffix = detail.isEmpty ? "" : ": \(detail)"
+      throw ScrollockError.server("\(site.displayName) rejected push registration (HTTP \(status))\(suffix).")
     }
   }
 
