@@ -176,3 +176,112 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(Site(host: "notyoutube.com") == nil)
   #expect(Site(host: "x.com.example") == nil)
 }
+
+@Test func instagramInboxListsOnlyThreadsWithUnseenMessagesFromOthers() throws {
+  let json = #"""
+    {"viewer":{"pk":1},"inbox":{"threads":[
+      {"thread_id":"340282366841710300949128100000000001","thread_v2_id":"17840000000000001","is_group":false,
+       "users":[{"pk":2,"username":"ana","full_name":"Ana"}],
+       "last_seen_at":{"1":{"item_id":"a0","timestamp":"1800000000000000"}},
+       "items":[
+         {"item_id":"a2","user_id":2,"timestamp":1800000120000000,"item_type":"text","text":"are you there?"},
+         {"item_id":"a1","user_id":2,"timestamp":1800000060000000,"item_type":"clip"},
+         {"item_id":"a0","user_id":2,"timestamp":1800000000000000,"item_type":"text","text":"hey"}]},
+      {"thread_id":"t-read","users":[{"pk":3,"username":"bob","full_name":""}],
+       "last_seen_at":{"1":{"item_id":"b1","timestamp":"1800000000000000"}},
+       "items":[{"item_id":"b1","user_id":3,"timestamp":"1800000000000000","item_type":"text","text":"seen"}]},
+      {"thread_id":"t-mine","users":[{"pk":4,"username":"cam"}],
+       "items":[{"item_id":"c1","user_id":1,"timestamp":"1800000300000000","item_type":"text","text":"my reply"}]},
+      {"thread_id":"t-group","thread_title":"Friends","is_group":true,
+       "users":[{"pk":5,"username":"dee","full_name":""}],
+       "last_seen_at":{"1":{"item_id":"d0","timestamp":"1700000000000000"}},
+       "items":[{"item_id":"d1","user_id":5,"timestamp":"1800000200000000","item_type":"like"}]}
+    ]}}
+    """#
+  let threads = try Inbox.instagram(Data(json.utf8), viewerID: nil)
+  #expect(threads.map(\.conversationID) == ["t-group", "340282366841710300949128100000000001"])
+  let group = threads[0]
+  #expect(group.title == "Friends")
+  #expect(group.preview == "dee: ❤️")
+  let direct = threads[1]
+  #expect(direct.title == "Ana")
+  #expect(direct.preview == "are you there?")
+  #expect(direct.unreadCount == 2)
+  #expect(direct.latestMessageID == "a2")
+  #expect(direct.sentAt == Date(timeIntervalSince1970: 1_800_000_120))
+  #expect(direct.url.absoluteString == "https://www.instagram.com/direct/t/17840000000000001/")
+  #expect(throws: InboxError.unexpectedResponse) { try Inbox.instagram(Data(#"{"message":"login_required"}"#.utf8), viewerID: "1") }
+}
+
+@Test func xInboxCountsMessagesFromOthersAfterTheReadMarker() throws {
+  let json = #"""
+    {"inbox_initial_state":{
+      "conversations":{
+        "1-2":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"1000"},
+        "1-3":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"2000"},
+        "1-5":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"0"},
+        "g":{"type":"GROUP_DM","trusted":true,"name":"Crew","last_read_event_id":"0"},
+        "req":{"type":"ONE_TO_ONE","trusted":false,"last_read_event_id":"0"},
+        "spam":{"type":"ONE_TO_ONE","trusted":false,"last_read_event_id":"0","low_quality":true}},
+      "users":{"2":{"name":"Ana"},"3":{"name":"Bob"},"4":{"name":"Cam"}},
+      "entries":[
+        {"message":{"conversation_id":"1-2","message_data":{"id":"999","time":"1800000000000","sender_id":"2","text":"old"}}},
+        {"message":{"conversation_id":"1-2","message_data":{"id":"1001","time":"1800000060000","sender_id":"2","text":"first"}}},
+        {"message":{"conversation_id":"1-2","message_data":{"id":"10000","time":"1800000120000","sender_id":"2","text":""}}},
+        {"message":{"conversation_id":"1-2","message_data":{"id":"900","time":"1700000000000","sender_id":"1","text":"mine, before"}}},
+        {"message":{"conversation_id":"1-5","message_data":{"id":"30","time":"1700000000000","sender_id":"5","text":"long ago"}}},
+        {"message":{"conversation_id":"1-5","message_data":{"id":"31","time":"1700000060000","sender_id":"1","text":"answered, read marker never moved"}}},
+        {"message":{"conversation_id":"req","message_data":{"id":"8","time":"1800000300000","sender_id":"6","text":"request"}}},
+        {"message":{"conversation_id":"1-3","message_data":{"id":"1500","time":"1800000000000","sender_id":"3","text":"read"}}},
+        {"message":{"conversation_id":"g","message_data":{"id":"5","time":"1800000240000","sender_id":"4","text":"yo"}}},
+        {"message":{"conversation_id":"spam","message_data":{"id":"7","time":"1800000300000","sender_id":"9","text":"buy"}}},
+        {"reaction_create":{"conversation_id":"1-2","id":"20000"}}]}}
+    """#
+  let threads = try Inbox.x(Data(json.utf8), viewerID: "1")
+  #expect(threads.map(\.conversationID) == ["g", "1-2"])
+  #expect(threads[0].title == "Crew")
+  #expect(threads[0].preview == "Cam: yo")
+  // "10000" sorts before "1001" as text, so IDs must compare as numbers.
+  #expect(threads[1].latestMessageID == "10000")
+  #expect(threads[1].preview == "Sent an attachment")
+  #expect(threads[1].unreadCount == 2)
+  #expect(threads[1].url.absoluteString == "https://x.com/messages/1-2")
+}
+
+@Test func notificationsSkipTheFirstCheckRepeatsAndUncheckedSites() {
+  func thread(_ site: Site, _ id: String, _ message: String) -> UnreadThread {
+    UnreadThread(
+      site: site, conversationID: id, title: "", preview: "", unreadCount: 1, latestMessageID: message,
+      sentAt: .now, url: URL(string: "https://example.com")!)
+  }
+  let first = Inbox.notifications(for: [thread(.x, "a", "1")], checked: [.x, .instagram], notified: nil)
+  #expect(first.post.isEmpty)
+  #expect(first.notified == ["x:a": "1"])
+  let second = Inbox.notifications(
+    for: [thread(.x, "a", "1"), thread(.instagram, "b", "9")], checked: [.x, .instagram], notified: first.notified)
+  #expect(second.post.map(\.id) == ["instagram:b"])
+  let third = Inbox.notifications(for: [thread(.x, "a", "2")], checked: [.x], notified: second.notified)
+  #expect(third.post.map(\.id) == ["x:a"])
+  #expect(third.notified == ["x:a": "2", "instagram:b": "9"])
+  let read = Inbox.notifications(for: [], checked: [.x, .instagram], notified: third.notified)
+  #expect(read.notified.isEmpty)
+}
+
+@Test func webPushDecryptsTheRFC8291Example() throws {
+  let keys = WebPushKeys(
+    privateKey: Data(base64URL: "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94")!,
+    authSecret: Data(base64URL: "BTBZMqHH6r4Tts7J_aSIgg")!)
+  #expect(
+    try keys.publicKey.base64URL
+      == "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4")
+  let header = Data(
+    base64URL: "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8")!
+  let ciphertext = Data(
+    base64URL: "8pfeW0KbunFT06SuDKoJH9Ql87S1QUrdirN6GcG7sFz1y1sqLgVi1VhjVkHsUoEsbI_0LpXMuGvnzQ")!
+  let plaintext = try keys.decrypt(header + ciphertext)
+  #expect(String(decoding: plaintext, as: UTF8.self) == "When I grow up, I want to be a watermelon")
+  var tampered = header + ciphertext
+  tampered[tampered.count - 1] ^= 1
+  #expect(throws: (any Error).self) { try keys.decrypt(tampered) }
+  #expect(throws: (any Error).self) { try WebPushKeys.generate().decrypt(header + ciphertext) }
+}

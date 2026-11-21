@@ -1,5 +1,6 @@
 import FamilyControls
 import Observation
+import OSLog
 import ScrollockKit
 import UIKit
 import UserNotifications
@@ -17,12 +18,19 @@ final class AppModel {
   /// Time Sensitive notifications pass through Focus unless the user turned that off.
   private(set) var notificationsBypassFocus = false
   var error: String?
+  /// Unread X and Instagram conversations, newest first.
+  private(set) var messages: [UnreadThread] = []
+  /// Sites whose inbox couldn't be read on the last check.
+  private(set) var messageProblems: [Site] = []
+  /// A conversation to open in the in-app browser, from the list or a notification.
+  var openingURL: URL?
 
   @ObservationIgnored let shields = ShieldController()
   @ObservationIgnored let sessions = SessionStore()
   @ObservationIgnored let api = ScrollockAPI(origin: AppModel.apiOrigin)
   @ObservationIgnored private var expiryTask: Task<Void, Never>?
   @ObservationIgnored private var pollTask: Task<Void, Never>?
+  @ObservationIgnored private var messageCheck: Task<Bool, Never>?
 
   static let apiOrigin: URL = {
     let value = Bundle.main.object(forInfoDictionaryKey: "ScrollockAPIOrigin") as? String
@@ -63,6 +71,14 @@ final class AppModel {
       authorization = .approved
       session = Session(token: "demo", user: TelegramUser(id: 1, name: "Mati", username: "matixlol"))
       leases[.youtube] = Lease(id: "demo", site: .youtube, expiresAt: Self.demoBreakEnds)
+      messages = [
+        UnreadThread(
+          site: .instagram, conversationID: "1", title: "Ana", preview: "are you coming tonight?", unreadCount: 3,
+          latestMessageID: "1", sentAt: .now.addingTimeInterval(-240), url: Site.instagram.webURL),
+        UnreadThread(
+          site: .x, conversationID: "2", title: "Bob", preview: "Sent an attachment", unreadCount: 1,
+          latestMessageID: "2", sentAt: .now.addingTimeInterval(-3900), url: Site.x.webURL),
+      ]
     }
   #endif
 
@@ -90,6 +106,11 @@ final class AppModel {
     if let request = shields.store.takeBreakRequest() { requestBreak(request) }
     Task { await checkNotifications() }
     if pairing != nil { pollPairing() }
+    #if DEBUG
+      if !Self.isDemo { Task { await checkMessages() } }
+    #else
+      Task { await checkMessages() }
+    #endif
     #if DEBUG
       if Self.isDemo { applyDemo() }
     #endif
@@ -189,6 +210,67 @@ final class AppModel {
         try? await Task.sleep(for: .seconds(2))
       }
     }
+  }
+
+  // MARK: Messages
+
+  /// Reads both inboxes and notifies about messages that arrived since the
+  /// last check. Overlapping calls share one check. Returns false when an inbox
+  /// couldn't be read.
+  @discardableResult func checkMessages() async -> Bool {
+    if let messageCheck { return await messageCheck.value }
+    let check = Task { () -> Bool in
+      var unread: [UnreadThread] = []
+      var failed: [Site] = []
+      for site in MessageFetcher.sites {
+        do {
+          unread += try await MessageFetcher.unread(on: site) ?? []
+        } catch {
+          Logger(subsystem: "ar.com.poronga.Scrollock", category: "messages")
+            .error("Couldn't read \(site.rawValue, privacy: .public) messages: \(error, privacy: .public)")
+          failed.append(site)
+        }
+      }
+      // Keep showing what an inbox that failed this time had before.
+      messages = (unread + messages.filter { failed.contains($0.site) }).sorted { $0.sentAt > $1.sentAt }
+      messageProblems = failed
+      let defaults = UserDefaults.standard
+      let (post, notified) = Inbox.notifications(
+        for: unread, checked: Set(MessageFetcher.sites).subtracting(failed),
+        notified: defaults.dictionary(forKey: "notifiedMessages") as? [String: String])
+      defaults.set(notified, forKey: "notifiedMessages")
+      for thread in post { await notify(thread) }
+      await clearReadNotifications(unread: unread, failed: failed)
+      return failed.isEmpty
+    }
+    messageCheck = check
+    defer { messageCheck = nil }
+    return await check.value
+  }
+
+  /// Removes delivered message notifications for conversations that are no
+  /// longer unread, on sites that were checked successfully.
+  private func clearReadNotifications(unread: [UnreadThread], failed: [Site]) async {
+    let center = UNUserNotificationCenter.current()
+    let current = Set(unread.map { "message.\($0.id)" })
+    let checked = MessageFetcher.sites.filter { !failed.contains($0) }
+    let stale = await center.deliveredNotifications().map(\.request.identifier).filter { id in
+      !current.contains(id) && checked.contains { id.hasPrefix("message.\($0.rawValue):") }
+    }
+    if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
+  }
+
+  private func notify(_ thread: UnreadThread) async {
+    let content = UNMutableNotificationContent()
+    content.title = thread.title
+    content.subtitle = thread.site.displayName
+    content.body = thread.unreadCount > 1 ? "\(thread.preview) (+\(thread.unreadCount - 1) more)" : thread.preview
+    content.sound = .default
+    content.threadIdentifier = thread.id
+    content.userInfo = ["url": thread.url.absoluteString]
+    // One notification per conversation, replaced as more messages arrive.
+    try? await UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: "message.\(thread.id)", content: content, trigger: nil))
   }
 
   // MARK: Breaks

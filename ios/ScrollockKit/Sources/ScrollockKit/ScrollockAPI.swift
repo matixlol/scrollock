@@ -52,6 +52,21 @@ public struct ScrollockAPI: Sendable {
     let _: Empty = try await send("POST", "/api/lock", body: Body(unlockId: lease.id), token: session.token)
   }
 
+  /// Creates a relay endpoint for a faked push subscription (web push spike).
+  public func registerPush(site: Site, session: Session) async throws -> (id: String, endpoint: URL) {
+    struct Body: Encodable { var site: Site }
+    struct Response: Decodable { var id: String; var endpoint: URL }
+    let response: Response = try await send("POST", "/api/push", body: Body(site: site), token: session.token)
+    return (response.id, response.endpoint)
+  }
+
+  /// The still-encrypted pushes the relay received for a subscription, newest first.
+  public func capturedPushes(id: String, session: Session) async throws -> [CapturedPush] {
+    struct Response: Decodable { var pushes: [CapturedPush] }
+    let response: Response = try await send("GET", "/api/push/\(id)", token: session.token)
+    return response.pushes
+  }
+
   func send<Response: Decodable>(
     _ method: String, _ path: String, body: (some Encodable)? = String?.none, token: String? = nil
   ) async throws -> Response {

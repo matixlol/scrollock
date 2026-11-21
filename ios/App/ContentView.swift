@@ -2,12 +2,19 @@ import FamilyControls
 import ScrollockKit
 import SwiftUI
 
+/// A page to open in the in-app browser.
+struct BrowseTarget: Identifiable {
+  let site: Site
+  let url: URL
+  var id: URL { url }
+}
+
 struct ContentView: View {
   @Bindable var model: AppModel
-  @State private var browsing: Site?
+  @State private var browsing: BrowseTarget?
 
   var body: some View {
-    HomeScreen(model: model) { browsing = $0 }
+    HomeScreen(model: model) { browsing = BrowseTarget(site: $0, url: $0.webURL) }
     .confirmationDialog("Take a break from…", isPresented: $model.choosingBreakSite, titleVisibility: .visible) {
       ForEach(Site.allCases.filter { model.selectedCount(for: $0) > 0 && model.activeLease(for: $0) == nil }) { site in
         Button(site.displayName) { model.breakSite = site }
@@ -17,8 +24,14 @@ struct ContentView: View {
       // A break request from a notification replaces an open browser.
       if site != nil { browsing = nil }
     }
-    .fullScreenCover(item: $browsing) { site in
-      FeedBrowser(model: model, site: site)
+    .onChange(of: model.openingURL) { _, url in
+      guard let url, let site = url.host().flatMap(Site.init(host:)) else { return }
+      model.openingURL = nil
+      browsing = BrowseTarget(site: site, url: url)
+    }
+    // Reading messages in the browser clears them from the list.
+    .fullScreenCover(item: $browsing, onDismiss: { Task { await model.checkMessages() } }) { target in
+      FeedBrowser(model: model, site: target.site, url: target.url)
     }
     .fullScreenCover(item: $model.breakSite) { site in
       BreakForm(model: model, site: site)
@@ -30,7 +43,11 @@ struct ContentView: View {
     }
     #if DEBUG
       // `-browse instagram` opens the browser at launch, for simulator screenshots.
-      .onAppear { browsing = UserDefaults.standard.string(forKey: "browse").flatMap(Site.init(rawValue:)) }
+      .onAppear {
+        browsing = UserDefaults.standard.string(forKey: "browse").flatMap(Site.init(rawValue:)).map {
+          BrowseTarget(site: $0, url: $0.webURL)
+        }
+      }
     #endif
   }
 }
@@ -67,6 +84,7 @@ struct SettingsForm: View {
       }
 
       TelegramSection(model: model)
+      PushSpikeSection(model: model)
 
 
       Section {

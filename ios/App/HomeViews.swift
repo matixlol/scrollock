@@ -20,6 +20,7 @@ struct HomeScreen: View {
             SetupBanner(progress: progress) { showingSettings = true }
           }
           IconsPanel(model: model, browse: browse) { picking = $0 }
+          MessageList(model: model)
           BreakList(model: model)
           Text("Tap a feed to browse it without the feed. Touch and hold for breaks and apps.")
             .font(.footnote)
@@ -175,6 +176,54 @@ private struct IconsPanel: View {
           .contextMenu { FeedActions(model: model, site: site, browse: browse, pick: pick) }
         }
       }
+    }
+  }
+}
+
+/// Unread X and Instagram conversations. Tapping one opens it in the in-app browser.
+private struct MessageList: View {
+  let model: AppModel
+
+  var body: some View {
+    if !model.messages.isEmpty || !model.messageProblems.isEmpty {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Unread messages").font(.headline).padding(.horizontal, 4)
+        ForEach(model.messages) { thread in
+          Button { model.openingURL = thread.url } label: {
+            HStack(spacing: 12) {
+              SiteIcon(site: thread.site, size: 36)
+              VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                  Text(thread.title).font(.headline).lineLimit(1)
+                  Spacer()
+                  Text(thread.sentAt, format: .relative(presentation: .named))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Text(thread.preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+              }
+              if thread.unreadCount > 1 {
+                Text("\(thread.unreadCount)")
+                  .font(.caption.weight(.bold))
+                  .foregroundStyle(.white)
+                  .padding(.horizontal, 7)
+                  .padding(.vertical, 2)
+                  .background(Color.accentColor, in: Capsule())
+              }
+            }
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+        ForEach(model.messageProblems) { site in
+          Text("Couldn't check \(site.displayName) messages. Open \(site.displayName) here and make sure you're logged in.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .padding(14)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
   }
 }

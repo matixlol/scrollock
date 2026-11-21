@@ -409,3 +409,84 @@ test("Worker validates unlock input, ignores activity, and persists lock", async
     200,
   );
 });
+
+test("Worker relays pushes only for registered subscriptions, to their owner", async () => {
+  const value = fixture();
+  const token = await value.pair();
+  const auth = { authorization: `Bearer ${token}` };
+  assert.equal(
+    (
+      await value.request("/api/push", {
+        method: "POST",
+        body: JSON.stringify({ site: "instagram" }),
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await value.request("/api/push", {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ site: "youtube" }),
+      })
+    ).status,
+    400,
+  );
+  const { id, endpoint } = await (
+    await value.request("/api/push", {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ site: "instagram" }),
+    })
+  ).json();
+  assert.equal(endpoint, `http://localhost:8787/push/${id}`);
+  const path = new URL(endpoint).pathname;
+
+  assert.equal(
+    (await value.request(`/push/${"a".repeat(32)}`, { method: "POST" })).status,
+    410,
+  );
+  const sent = await value.request(path, {
+    method: "POST",
+    headers: {
+      "content-encoding": "aes128gcm",
+      ttl: "60",
+      authorization: "vapid t=jwt, k=key",
+      cookie: "not kept",
+    },
+    body: new Uint8Array([0, 1, 254, 255]),
+  });
+  assert.equal(sent.status, 201);
+  assert.equal(
+    (
+      await value.request(path, {
+        method: "POST",
+        body: new Uint8Array(8193),
+      })
+    ).status,
+    413,
+  );
+
+  const { pushes } = await (
+    await value.request(`/api/push/${id}`, { headers: auth })
+  ).json();
+  assert.equal(pushes.length, 1);
+  assert.deepEqual(pushes[0].headers, {
+    authorization: "vapid t=jwt, k=key",
+    "content-encoding": "aes128gcm",
+    ttl: "60",
+  });
+  assert.deepEqual(
+    [...Buffer.from(pushes[0].body, "base64")],
+    [0, 1, 254, 255],
+  );
+  assert.equal(pushes[0].receivedAt, 1_800_000_000_000);
+
+  const record = await value.storage.get(`pushsub:${id}`);
+  await value.storage.put(`pushsub:${id}`, { ...record, userId: 999 });
+  assert.equal(
+    (await value.request(`/api/push/${id}`, { headers: auth })).status,
+    404,
+  );
+});

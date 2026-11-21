@@ -395,8 +395,74 @@ export class ScrollockState {
     )
       return json(200, { messages: this.messages }, headers);
 
+    // Web push spike: X or Instagram deliver pushes here for a subscription the
+    // iOS app faked in its in-app browser. Bodies are encrypted to keys only the
+    // phone holds, so the relay keeps the newest few for the app to decrypt.
+    const push = /^\/push\/([A-Za-z0-9_-]{16,64})$/.exec(url.pathname);
+    if (request.method === "POST" && push) {
+      const subscription = await this.storage.get(`pushsub:${push[1]}`);
+      // 410 tells push senders the subscription is gone.
+      if (!subscription) return json(410, { error: "unknown subscription" });
+      const body = new Uint8Array(await request.arrayBuffer());
+      if (body.byteLength > 8192) return json(413, { error: "body too large" });
+      const kept = {};
+      for (const name of [
+        "authorization",
+        "content-encoding",
+        "content-type",
+        "crypto-key",
+        "encryption",
+        "topic",
+        "ttl",
+        "urgency",
+      ]) {
+        const value = request.headers.get(name);
+        if (value) kept[name] = value;
+      }
+      let binary = "";
+      for (const byte of body) binary += String.fromCharCode(byte);
+      const key = `pushlog:${push[1]}`;
+      const log = (await this.storage.get(key)) || [];
+      log.unshift({
+        receivedAt: this.now(),
+        headers: kept,
+        body: btoa(binary),
+      });
+      await this.storage.put(key, log.slice(0, 20));
+      console.log(
+        `push for ${subscription.site}: ${body.byteLength} bytes, ${kept["content-encoding"] || "no content-encoding"}`,
+      );
+      return new Response(null, { status: 201 });
+    }
+
     const session = await this.authenticate(request);
     if (!session) return json(401, { error: "invalid session" }, headers);
+
+    if (request.method === "POST" && url.pathname === "/api/push") {
+      const input = await requestBody(request);
+      if (input.site !== "x" && input.site !== "instagram")
+        return json(400, { error: "invalid site" }, headers);
+      const id = randomId(24);
+      await this.storage.put(`pushsub:${id}`, {
+        userId: session.user.id,
+        site: input.site,
+        createdAt: this.now(),
+      });
+      return json(
+        200,
+        { id, endpoint: `${config.origin}/push/${id}` },
+        headers,
+      );
+    }
+
+    const captured = /^\/api\/push\/([A-Za-z0-9_-]+)$/.exec(url.pathname);
+    if (request.method === "GET" && captured) {
+      const subscription = await this.storage.get(`pushsub:${captured[1]}`);
+      if (!subscription || subscription.userId !== session.user.id)
+        return json(404, { error: "subscription not found" }, headers);
+      const pushes = (await this.storage.get(`pushlog:${captured[1]}`)) || [];
+      return json(200, { pushes }, headers);
+    }
 
     if (request.method === "POST" && url.pathname === "/api/unlock") {
       const input = await requestBody(request);

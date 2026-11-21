@@ -6,6 +6,14 @@
 	<false/>
 	<key>ScrollockAPIOrigin</key>
 	<string>$(SCROLLOCK_API_ORIGIN)</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>ar.com.poronga.Scrollock.messages</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

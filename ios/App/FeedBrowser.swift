@@ -9,6 +9,7 @@ import WebKit
 struct FeedBrowser: View {
   let model: AppModel
   let site: Site
+  var url: URL
   @State private var browser: BrowserModel?
   @State private var barHeight: CGFloat = 0
   @State private var keyboardShown = false
@@ -52,7 +53,7 @@ struct FeedBrowser: View {
       guard browser == nil else { return }
       do {
         let browser = try BrowserModel(model: model)
-        browser.webView.load(URLRequest(url: site.webURL))
+        browser.webView.load(URLRequest(url: url))
         self.browser = browser
       } catch {
         model.error = "Couldn't load Scrollock's feed blocker. Reinstall the app from TestFlight."
@@ -177,6 +178,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     controller.addUserScript(
       WKUserScript(
         source: try Self.feedBlocker(), injectionTime: .atDocumentStart, forMainFrameOnly: true, in: Self.world))
+    PushSpike.install(in: controller, model: model)
     webView = WKWebView(frame: .zero, configuration: configuration)
     super.init()
     controller.addScriptMessageHandler(MessageHandler(browser: self), contentWorld: Self.world, name: "scrollock")

@@ -73,4 +73,13 @@ public final class SharedStore: @unchecked Sendable {
     guard let at = breakRequestedAt, now.timeIntervalSince(at) < window else { return nil }
     return .some(requestedBreak)
   }
+
+  /// The push subscription faked for a site, if the site asked for one.
+  public func pushSubscription(for site: Site) -> PushSubscriptionRecord? {
+    defaults.data(forKey: "push.\(site.rawValue)").flatMap { try? JSONDecoder().decode(PushSubscriptionRecord.self, from: $0) }
+  }
+
+  public func setPushSubscription(_ record: PushSubscriptionRecord?, for site: Site) {
+    defaults.set(record.flatMap { try? JSONEncoder().encode($0) }, forKey: "push.\(site.rawValue)")
+  }
 }
