@@ -195,7 +195,7 @@ enum MessageFetcher {
           "encryption_key2": auth,
         ]
       ]
-      request = URLRequest(url: URL(string: "https://api.x.com/1.1/notifications/settings/login.json")!)
+      request = URLRequest(url: URL(string: "https://x.com/i/api/1.1/notifications/settings/login.json")!)
       request.httpMethod = "POST"
       request.httpBody = try JSONSerialization.data(withJSONObject: payload)
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -210,10 +210,11 @@ enum MessageFetcher {
       throw ScrollockError.invalid("Web push isn't supported for YouTube.")
     }
     applyCookies(cookies, to: &request)
-    let (_, response) = try await session.data(for: request)
+    let (data, response) = try await session.data(for: request)
     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
     guard (200..<300).contains(status) else {
-      throw ScrollockError.server("\(site.displayName) rejected push registration (HTTP \(status)).")
+      let detail = String(decoding: data, as: UTF8.self).prefix(120)
+      throw ScrollockError.server("\(site.displayName) rejected push registration (HTTP \(status)): \(detail)")
     }
   }
 

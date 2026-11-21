@@ -178,7 +178,6 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
     controller.addUserScript(
       WKUserScript(
         source: try Self.feedBlocker(), injectionTime: .atDocumentStart, forMainFrameOnly: true, in: Self.world))
-    PushSpike.install(in: controller, model: model)
     webView = WKWebView(frame: .zero, configuration: configuration)
     super.init()
     controller.addScriptMessageHandler(MessageHandler(browser: self), contentWorld: Self.world, name: "scrollock")
@@ -227,9 +226,17 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
       \(try read("rules.js"))
       \(try read("timer.js"))
       if (ScrollockRules.siteForHost(location.hostname)) {
-        const style = document.createElement("style");
-        style.textContent = \(String(decoding: css, as: UTF8.self))[0];
-        document.documentElement.append(style);
+        const cssText = \(String(decoding: css, as: UTF8.self))[0];
+        const ensureStyle = () => {
+          const root = document.head || document.documentElement;
+          if (!root || document.getElementById("scrollock-style")) return;
+          const style = document.createElement("style");
+          style.id = "scrollock-style";
+          style.textContent = cssText;
+          root.append(style);
+        };
+        ensureStyle();
+        new MutationObserver(ensureStyle).observe(document, { childList: true, subtree: true });
         \(try read("content.js"))
       }
       """

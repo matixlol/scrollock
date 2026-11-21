@@ -22,6 +22,8 @@ final class AppModel {
   private(set) var messages: [UnreadThread] = []
   /// Sites whose inbox couldn't be read on the last check.
   private(set) var messageProblems: [Site] = []
+  /// Sites with an active Web Push subscription stored on device.
+  var pushSubscriptions: Set<Site> = []
   /// A conversation to open in the in-app browser, from the list or a notification.
   var openingURL: URL?
 
@@ -42,6 +44,7 @@ final class AppModel {
 
   init() {
     session = sessions.load()?.session
+    pushSubscriptions = Set(MessageFetcher.sites.filter { shields.store.pushSubscription(for: $0) != nil })
     Self.shared = self
     #if DEBUG
       if Self.isDemo { applyDemo() }
@@ -102,6 +105,7 @@ final class AppModel {
     }
     selections = Dictionary(uniqueKeysWithValues: Site.allCases.map { ($0, shields.selection(for: $0)) })
     leases = Dictionary(uniqueKeysWithValues: Site.allCases.compactMap { site in shields.store.lease(for: site).map { (site, $0) } })
+    pushSubscriptions = Set(MessageFetcher.sites.filter { shields.store.pushSubscription(for: $0) != nil })
     scheduleExpiryRefresh()
     if let request = shields.store.takeBreakRequest() { requestBreak(request) }
     Task { await checkNotifications() }
