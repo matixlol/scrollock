@@ -31,6 +31,7 @@ struct HomeScreen: View {
         .padding(.horizontal)
         .padding(.bottom)
       }
+      .refreshable { await model.checkMessages() }
       .background(Color(.systemGroupedBackground))
       .navigationTitle("Scrollock")
       .toolbar {

@@ -282,6 +282,78 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(String(decoding: plaintext, as: UTF8.self) == "When I grow up, I want to be a watermelon")
   var tampered = header + ciphertext
   tampered[tampered.count - 1] ^= 1
-  #expect(throws: (any Error).self) { try keys.decrypt(tampered) }
   #expect(throws: (any Error).self) { try WebPushKeys.generate().decrypt(header + ciphertext) }
+  #expect(throws: (any Error).self) { try keys.decrypt(tampered) }
+}
+
+@Test func instagramGraphQLInboxParsesSlideMailbox() throws {
+  let json = #"""
+    {"data":{"get_slide_mailbox_for_iris_subscription":{
+      "id":"17850313595739588",
+      "threads_by_folder":{"edges":[
+        {"node":{"as_ig_direct_thread":{
+          "id":"843140653749119","thread_fbid":"843140653749119","thread_id":"340282366841710301",
+          "is_group":false,"is_muted":false,"marked_as_unread":false,"thread_title":"Bruno",
+          "users":[{"id":"4220632603","interop_messaging_user_fbid":"106051607458031","full_name":"Bruno✧","username":"bbrunovazquez"}],
+          "slide_read_receipts":[{"participant_fbid":"17850313595739588","watermark_timestamp_ms":"1800000000000"}],
+          "slide_messages":{"edges":[
+            {"node":{"id":"m2","sender_fbid":"106051607458031","timestamp_ms":"1800000120000","content_type":"TEXT","text_body":"holaa","igd_snippet":"holaa"}},
+            {"node":{"id":"m1","sender_fbid":"106051607458031","timestamp_ms":"1800000060000","content_type":"TEXT","text_body":"che","igd_snippet":"che"}},
+            {"node":{"id":"m0","sender_fbid":"106051607458031","timestamp_ms":"1800000000000","content_type":"TEXT","text_body":"seen","igd_snippet":"seen"}}
+          ]}
+        }}},
+        {"node":{"as_ig_direct_thread":{
+          "id":"17934123518595949","thread_fbid":"17934123518595949","thread_id":"340282366841710302",
+          "is_group":false,"is_muted":false,"marked_as_unread":false,"thread_title":"mati",
+          "users":[{"id":"47872467948","interop_messaging_user_fbid":"17846445962595949","full_name":"mati","username":"matias.aki"}],
+          "slide_read_receipts":[{"participant_fbid":"17850313595739588","watermark_timestamp_ms":"1686057342121"}],
+          "slide_messages":{"edges":[
+            {"node":{"id":"s1","sender_fbid":"17850313595739588","timestamp_ms":"1690048394702","content_type":"MESSAGE_INLINE_SHARE","text_body":"https://example.com","igd_snippet":"You: https://example.com"}}
+          ]}
+        }}},
+        {"node":{"as_ig_direct_thread":{
+          "id":"999","thread_fbid":"999","thread_id":"340282366841710303",
+          "is_group":true,"is_muted":false,"marked_as_unread":true,"thread_title":"Crew",
+          "users":[{"id":"5","interop_messaging_user_fbid":"500","full_name":"","username":"dee"}],
+          "slide_read_receipts":[{"participant_fbid":"17850313595739588","watermark_timestamp_ms":"1900000000000"}],
+          "slide_messages":{"edges":[
+            {"node":{"id":"g1","sender_fbid":"500","timestamp_ms":"1800000200000","content_type":"TEXT","text_body":"","igd_snippet":"Sent a reel"}}
+          ]}
+        }}},
+        {"node":{"as_ig_direct_thread":{
+          "id":"muted","thread_fbid":"muted","thread_id":"340282366841710304",
+          "is_group":false,"is_muted":true,"marked_as_unread":false,"thread_title":"Noisy",
+          "users":[{"id":"6","interop_messaging_user_fbid":"600","full_name":"Noisy","username":"noisy"}],
+          "slide_read_receipts":[],
+          "slide_messages":{"edges":[
+            {"node":{"id":"n1","sender_fbid":"600","timestamp_ms":"1800000300000","content_type":"TEXT","text_body":"spam","igd_snippet":"spam"}}
+          ]}
+        }}}
+      ]}
+    }}}
+    """#
+  let threads = try Inbox.instagram(Data(json.utf8), viewerID: "52259691587")
+  #expect(threads.map(\.conversationID) == ["340282366841710303", "340282366841710301"])
+  #expect(threads[0].title == "Crew")
+  #expect(threads[0].preview == "dee: Sent a reel")
+  #expect(threads[0].url.absoluteString == "https://www.instagram.com/direct/t/999/")
+  #expect(threads[1].title == "Bruno")
+  #expect(threads[1].preview == "holaa")
+  #expect(threads[1].unreadCount == 2)
+  #expect(threads[1].latestMessageID == "m2")
+  #expect(threads[1].url.absoluteString == "https://www.instagram.com/direct/t/843140653749119/")
+}
+
+@Test func pushNotificationParsesDecryptedPayloads() {
+  let xPayload = Data(#"{"title":"Ana","body":"hey there","data":{"uri":"/messages/1-2"}}"#.utf8)
+  let xParsed = Inbox.pushNotification(site: .x, payload: xPayload)
+  #expect(xParsed?.title == "Ana")
+  #expect(xParsed?.body == "hey there")
+  #expect(xParsed?.url?.absoluteString == "https://x.com/messages/1-2")
+
+  let igPayload = Data(#"{"title":"Instagram","message":"New message","url":"https://www.instagram.com/direct/t/123/"}"#.utf8)
+  let igParsed = Inbox.pushNotification(site: .instagram, payload: igPayload)
+  #expect(igParsed?.title == "Instagram")
+  #expect(igParsed?.body == "New message")
+  #expect(igParsed?.url?.absoluteString == "https://www.instagram.com/direct/t/123/")
 }

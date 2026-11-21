@@ -50,6 +50,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     Task { task.setTaskCompleted(success: await check.value) }
   }
 
+  /// Show message and forwarded push notifications even while Scrollock is open.
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    [.banner, .sound, .list]
+  }
+
   /// Tapping a message notification opens the conversation; tapping the block
   /// screen's "Take a break…" notification opens the break form.
   func userNotificationCenter(

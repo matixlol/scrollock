@@ -107,7 +107,12 @@ final class AppModel {
     Task { await checkNotifications() }
     if pairing != nil { pollPairing() }
     #if DEBUG
-      if !Self.isDemo { Task { await checkMessages() } }
+      if !Self.isDemo {
+        Task {
+          await MessageFetcher.importDebugCookiesIfRequested()
+          await checkMessages()
+        }
+      }
     #else
       Task { await checkMessages() }
     #endif
@@ -123,13 +128,16 @@ final class AppModel {
     if let site { breakSite = site } else { choosingBreakSite = true }
   }
 
-  /// "Take a break…" on the block screen only works through a notification.
+  /// "Take a break…" on the block screen and message/push forwarding use local notifications.
   func checkNotifications() async {
     let center = UNUserNotificationCenter.current()
     #if DEBUG
       if Self.isDemo { return }
     #endif
-    if isAuthorized, await center.notificationSettings().authorizationStatus == .notDetermined {
+    let shouldAsk =
+      isAuthorized || session != nil || !messages.isEmpty
+      || MessageFetcher.sites.contains { shields.store.pushSubscription(for: $0) != nil }
+    if shouldAsk, await center.notificationSettings().authorizationStatus == .notDetermined {
       _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
     let settings = await center.notificationSettings()
@@ -241,6 +249,8 @@ final class AppModel {
       defaults.set(notified, forKey: "notifiedMessages")
       for thread in post { await notify(thread) }
       await clearReadNotifications(unread: unread, failed: failed)
+      await forwardCapturedPushes()
+      if !unread.isEmpty { await checkNotifications() }
       return failed.isEmpty
     }
     messageCheck = check

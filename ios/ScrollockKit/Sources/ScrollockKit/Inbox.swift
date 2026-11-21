@@ -36,14 +36,21 @@ public enum InboxError: Error, Equatable {
 
 /// Parses the inboxes x.com and instagram.com load for their own Messages pages.
 public enum Inbox {
-  /// `GET https://www.instagram.com/api/v1/direct_v2/inbox/`. A thread is
-  /// unread when its newest message is from someone else and comes after the
-  /// viewer's `last_seen_at` marker.
+  /// Parses either Instagram's current GraphQL `PolarisDirectInboxMobileQuery`
+  /// (`get_slide_mailbox_for_iris_subscription`) or the legacy `direct_v2/inbox`
+  /// response. A thread is unread when it's explicitly marked unread, or when
+  /// its newest message is from someone else and comes after the viewer's read
+  /// watermark.
   public static func instagram(_ data: Data, viewerID: String?) throws -> [UnreadThread] {
-    guard
-      let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let inbox = root["inbox"] as? [String: Any]
-    else { throw InboxError.unexpectedResponse }
+    guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      throw InboxError.unexpectedResponse
+    }
+    if let payload = root["data"] as? [String: Any],
+      let mailbox = payload["get_slide_mailbox_for_iris_subscription"] as? [String: Any]
+    {
+      return instagramGraphQL(mailbox, viewerID: viewerID)
+    }
+    guard let inbox = root["inbox"] as? [String: Any] else { throw InboxError.unexpectedResponse }
     let viewer = viewerID ?? string((root["viewer"] as? [String: Any])?["pk"])
     let threads = inbox["threads"] as? [[String: Any]] ?? []
     let unread = threads.compactMap { thread -> UnreadThread? in
@@ -82,6 +89,71 @@ public enum Inbox {
         url: URL(string: "https://www.instagram.com/direct/t/\(webID)/")!)
     }
     return unread.sorted { $0.sentAt > $1.sentAt }
+  }
+
+  private static func instagramGraphQL(_ mailbox: [String: Any], viewerID: String?) -> [UnreadThread] {
+    let viewerFBID = string(mailbox["id"]) ?? viewerID
+    let edges = (mailbox["threads_by_folder"] as? [String: Any])?["edges"] as? [[String: Any]] ?? []
+    let unread = edges.compactMap { edge -> UnreadThread? in
+      guard
+        let node = edge["node"] as? [String: Any],
+        let thread = node["as_ig_direct_thread"] as? [String: Any],
+        thread["is_muted"] as? Bool != true,
+        let threadID = string(thread["thread_id"]) ?? string(thread["id"])
+      else { return nil }
+      let messageEdges = (thread["slide_messages"] as? [String: Any])?["edges"] as? [[String: Any]] ?? []
+      let messages = messageEdges.compactMap { $0["node"] as? [String: Any] }
+      guard
+        let latest = messages.first,
+        let latestID = string(latest["id"]),
+        let sender = string(latest["sender_fbid"]),
+        let sentAt = date(latest["timestamp_ms"])
+      else { return nil }
+      let markedUnread = thread["marked_as_unread"] as? Bool ?? false
+      let receipts = thread["slide_read_receipts"] as? [[String: Any]] ?? []
+      let viewerReceipt = receipts.first { string($0["participant_fbid"]) == viewerFBID }
+      let seenAt = viewerReceipt.flatMap { date($0["watermark_timestamp_ms"]) } ?? .distantPast
+      if !markedUnread {
+        guard sender != viewerFBID, sentAt > seenAt else { return nil }
+      }
+      let count = messages.prefix { item in
+        string(item["sender_fbid"]) != viewerFBID && (date(item["timestamp_ms"]).map { $0 > seenAt } ?? false)
+      }.count
+      let users = thread["users"] as? [[String: Any]] ?? []
+      let user = users.first { string($0["interop_messaging_user_fbid"]) == sender } ?? users.first
+      let senderName =
+        (user?["full_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? (user?["username"] as? String)
+        ?? "Someone"
+      let isGroup = thread["is_group"] as? Bool ?? false
+      let threadTitle = (thread["thread_title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+      var preview = instagramGraphQLPreview(latest)
+      if isGroup, sender != viewerFBID, !preview.hasPrefix("\(senderName): ") {
+        preview = "\(senderName): \(preview)"
+      }
+      let webID = string(thread["thread_fbid"]) ?? string(thread["id"]) ?? threadID
+      return UnreadThread(
+        site: .instagram, conversationID: threadID,
+        title: threadTitle ?? senderName,
+        preview: preview, unreadCount: max(count, 1), latestMessageID: latestID, sentAt: sentAt,
+        url: URL(string: "https://www.instagram.com/direct/t/\(webID)/")!)
+    }
+    return unread.sorted { $0.sentAt > $1.sentAt }
+  }
+
+  static func instagramGraphQLPreview(_ item: [String: Any]) -> String {
+    if let text = item["text_body"] as? String, !text.isEmpty { return text }
+    if let snippet = item["igd_snippet"] as? String, !snippet.isEmpty { return snippet }
+    switch (item["content_type"] as? String)?.uppercased() {
+    case "LIKE": return "❤️"
+    case "VOICE_MEDIA", "AUDIO": return "Voice message"
+    case "CLIP", "REEL_SHARE", "XMA_CLIP": return "Shared a reel"
+    case "MEDIA_SHARE", "XMA_MEDIA_SHARE": return "Shared a post"
+    case "STORY_SHARE", "XMA_STORY_SHARE": return "Shared a story"
+    case "MEDIA", "PHOTO", "VIDEO", "RAVEN_MEDIA": return "Sent a photo or video"
+    case "ANIMATED_MEDIA": return "Sent a GIF"
+    case "LINK", "MESSAGE_INLINE_SHARE": return "Sent a link"
+    default: return "Sent a message"
+    }
   }
 
   /// `GET https://x.com/i/api/1.1/dm/inbox_initial_state.json`. Like x.com
@@ -151,6 +223,31 @@ public enum Inbox {
     for thread in fresh { next[thread.id] = thread.latestMessageID }
     guard let notified else { return ([], next) }
     return (fresh.filter { notified[$0.id] != $0.latestMessageID }, next)
+  }
+
+  /// Parses a decrypted Web Push JSON payload from X or Instagram into a local
+  /// notification's title, body and optional destination URL.
+  public static func pushNotification(site: Site, payload: Data) -> (title: String, body: String, url: URL?)? {
+    let rawText = String(decoding: payload, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !rawText.isEmpty else { return nil }
+    guard let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] else {
+      return (site.displayName, rawText, site.webURL)
+    }
+    func text(_ dict: [String: Any]?, _ key: String) -> String? {
+      guard let value = dict?[key] as? String, !value.isEmpty else { return nil }
+      return value
+    }
+    let data = json["data"] as? [String: Any]
+    let title = text(json, "title") ?? text(data, "title") ?? site.displayName
+    let body =
+      text(json, "body") ?? text(json, "message") ?? text(json, "m") ?? text(data, "body") ?? rawText
+    let rawURL = text(json, "url") ?? text(data, "uri") ?? text(data, "url") ?? text(json, "uri")
+    let url: URL? = rawURL.flatMap { value in
+      if let absolute = URL(string: value), absolute.scheme != nil { return absolute }
+      if value.hasPrefix("/") { return URL(string: value, relativeTo: site.webURL)?.absoluteURL }
+      return nil
+    }
+    return (title, body, url ?? site.webURL)
   }
 
   static func instagramPreview(_ item: [String: Any]) -> String {

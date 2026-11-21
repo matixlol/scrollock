@@ -1,6 +1,7 @@
 import OSLog
 import ScrollockKit
 import SwiftUI
+import UserNotifications
 import WebKit
 
 /// Web push spike. WKWebView has no Push API, so the in-app browser gives X and
@@ -148,6 +149,55 @@ extension AppModel {
     }
   }
 
+  /// Directly creates a relay endpoint and registers it with X or Instagram
+  /// using the in-app browser's cookies.
+  func registerPush(for site: Site) async throws {
+    guard let session else { throw ScrollockError.invalid("Connect Telegram in Scrollock first.") }
+    let (id, endpoint) = try await api.registerPush(site: site, session: session)
+    let keys = WebPushKeys.generate()
+    try await MessageFetcher.registerWebPush(on: site, endpoint: endpoint, keys: keys)
+    let record = PushSubscriptionRecord(site: site, id: id, endpoint: endpoint, keys: keys, subscribedAt: .now)
+    shields.store.setPushSubscription(record, for: site)
+    await checkNotifications()
+  }
+
+  /// Pulls newly captured web pushes from the relay, decrypts them on device,
+  /// and forwards them as local notifications.
+  func forwardCapturedPushes() async {
+    guard let session else { return }
+    let defaults = UserDefaults.standard
+    let lastSeenKey = "forwardedPushTimestamps"
+    var lastSeen = defaults.dictionary(forKey: lastSeenKey) as? [String: Double] ?? [:]
+    var changed = false
+    for site in MessageFetcher.sites {
+      guard let record = shields.store.pushSubscription(for: site) else { continue }
+      guard let pushes = try? await api.capturedPushes(id: record.id, session: session) else { continue }
+      let cutoff = lastSeen[site.rawValue] ?? record.subscribedAt.timeIntervalSince1970
+      let fresh = pushes
+        .filter { $0.receivedAt.timeIntervalSince1970 > cutoff }
+        .sorted { $0.receivedAt < $1.receivedAt }
+      for push in fresh {
+        lastSeen[site.rawValue] = max(lastSeen[site.rawValue] ?? 0, push.receivedAt.timeIntervalSince1970)
+        changed = true
+        guard
+          push.headers["content-encoding"] == "aes128gcm",
+          let plaintext = try? record.keys.decrypt(push.body),
+          let parsed = Inbox.pushNotification(site: site, payload: plaintext)
+        else { continue }
+        let content = UNMutableNotificationContent()
+        content.title = parsed.title
+        content.subtitle = site.displayName
+        content.body = parsed.body
+        content.sound = .default
+        if let url = parsed.url { content.userInfo = ["url": url.absoluteString] }
+        let id = "push.\(site.rawValue).\(Int(push.receivedAt.timeIntervalSince1970 * 1000))"
+        try? await UNUserNotificationCenter.current().add(
+          UNNotificationRequest(identifier: id, content: content, trigger: nil))
+      }
+    }
+    if changed { defaults.set(lastSeen, forKey: lastSeenKey) }
+  }
+
   private static func subscriptionJSON(_ record: PushSubscriptionRecord) -> [String: Any] {
     [
       "endpoint": record.endpoint.absoluteString,
@@ -160,27 +210,46 @@ extension AppModel {
 struct PushSpikeSection: View {
   let model: AppModel
   @State private var showing: Site?
+  @State private var registering: Site?
+  @State private var registrationError: String?
   @AppStorage(PushSpike.enabledKey) private var enabled = false
 
   var body: some View {
     Section {
-      Toggle("Fake push support in the browser", isOn: $enabled)
       ForEach(MessageFetcher.sites) { site in
         HStack {
           Text(site.displayName)
           Spacer()
           if model.shields.store.pushSubscription(for: site) != nil {
             Button("Captured pushes") { showing = site }.buttonStyle(.borderless)
+          } else if registering == site {
+            ProgressView()
           } else {
-            Text("Not subscribed").foregroundStyle(.secondary)
+            Button("Subscribe") {
+              registering = site
+              registrationError = nil
+              Task {
+                defer { registering = nil }
+                do {
+                  try await model.registerPush(for: site)
+                } catch {
+                  registrationError = error.localizedDescription
+                }
+              }
+            }
+            .buttonStyle(.borderless)
           }
         }
       }
+      if let registrationError {
+        Text(registrationError).font(.footnote).foregroundStyle(.red)
+      }
+      Toggle("Fake push support in the browser", isOn: $enabled)
     } header: {
-      Text("Web push (experiment)")
+      Text("Web push")
     } footer: {
       Text(
-        "Applies the next time you open a site. Then turn on push notifications in X's or Instagram's own settings while browsing them in Scrollock. Pushes they send are decrypted on this iPhone and listed here. Turn this off if a site stops loading."
+        "Subscribe registers Scrollock's relay directly with your X or Instagram login (no fake service worker needed). Pushes are encrypted end-to-end to keys on this iPhone and decrypted here."
       )
     }
     .sheet(item: $showing) { site in CapturedPushList(model: model, site: site) }
