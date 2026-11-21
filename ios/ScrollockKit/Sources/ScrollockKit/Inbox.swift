@@ -168,6 +168,9 @@ public enum Inbox {
     else { throw InboxError.unexpectedResponse }
     let conversations = state["conversations"] as? [String: [String: Any]] ?? [:]
     let users = state["users"] as? [String: [String: Any]] ?? [:]
+    let inboxSeenUpTo = max(
+      string(state["trusted_last_seen_event_id"]).flatMap(UInt64.init) ?? 0,
+      string(state["last_seen_event_id"]).flatMap(UInt64.init) ?? 0)
     struct Message {
       var id: UInt64
       var sender: String
@@ -193,7 +196,16 @@ public enum Inbox {
         conversation["trusted"] as? Bool == true, conversation["muted"] as? Bool != true,
         let newest = messages.max(by: { $0.id < $1.id }), newest.sender != viewerID
       else { return nil }
+      let participants = conversation["participants"] as? [[String: Any]] ?? []
+      let participantRead =
+        viewerID.flatMap { viewer in
+          participants.first { string($0["user_id"]) == viewer }.flatMap {
+            string($0["last_read_event_id"]).flatMap(UInt64.init)
+          }
+        } ?? 0
       let readUpTo = max(
+        inboxSeenUpTo,
+        participantRead,
         string(conversation["last_read_event_id"]).flatMap(UInt64.init) ?? 0,
         messages.filter { $0.sender == viewerID }.map(\.id).max() ?? 0)
       let unread = messages.filter { $0.sender != viewerID && $0.id > readUpTo }

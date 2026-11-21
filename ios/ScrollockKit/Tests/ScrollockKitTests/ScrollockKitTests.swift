@@ -248,6 +248,29 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
   #expect(threads[1].url.absoluteString == "https://x.com/messages/1-2")
 }
 
+@Test func xInboxRespectsInboxLastSeenAndParticipantReadMarkers() throws {
+  let json = #"""
+    {"inbox_initial_state":{
+      "trusted_last_seen_event_id":"5000",
+      "conversations":{
+        "1-2":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"100"},
+        "1-3":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"100",
+               "participants":[{"user_id":"1","last_read_event_id":"6000"},{"user_id":"3"}]},
+        "1-4":{"type":"ONE_TO_ONE","trusted":true,"last_read_event_id":"100"}
+      },
+      "users":{"2":{"name":"Old"},"3":{"name":"PartRead"},"4":{"name":"Fresh"}},
+      "entries":[
+        {"message":{"conversation_id":"1-2","message_data":{"id":"4000","time":"1700000000000","sender_id":"2","text":"old seen in inbox"}}},
+        {"message":{"conversation_id":"1-3","message_data":{"id":"5500","time":"1800000000000","sender_id":"3","text":"read via participant marker"}}},
+        {"message":{"conversation_id":"1-4","message_data":{"id":"5500","time":"1800000060000","sender_id":"4","text":"genuinely new"}}}
+      ]}}
+    """#
+  let threads = try Inbox.x(Data(json.utf8), viewerID: "1")
+  #expect(threads.map(\.conversationID) == ["1-4"])
+  #expect(threads[0].title == "Fresh")
+  #expect(threads[0].preview == "genuinely new")
+}
+
 @Test func notificationsSkipTheFirstCheckRepeatsAndUncheckedSites() {
   func thread(_ site: Site, _ id: String, _ message: String) -> UnreadThread {
     UnreadThread(

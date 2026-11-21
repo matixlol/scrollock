@@ -87,8 +87,11 @@ enum MessageFetcher {
       request.setValue("application/json", forHTTPHeaderField: "Accept")
       let (data, response) = try await session.data(for: request)
       guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw InboxError.unexpectedResponse }
-      // twid is "u=<user ID>", percent-encoded.
-      let viewer = cookie("twid")?.removingPercentEncoding.map { String($0.drop { $0 != "=" }.dropFirst()) }
+      // twid is "u=<user ID>", percent-encoded and occasionally wrapped in quotes.
+      let viewer = cookie("twid")?
+        .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        .removingPercentEncoding
+        .map { String($0.drop { $0 != "=" }.dropFirst()).trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
       return try Inbox.x(data, viewerID: viewer)
     case .youtube:
       return nil
