@@ -96,8 +96,9 @@ final class AppModel {
   /// Re-syncs with shared state whenever the app becomes active. This is also a
   /// fallback relock in case a Device Activity callback was delayed.
   func refresh() {
-    // Picks up a sign-in or sign-out made in the Safari extension.
-    session = sessions.load()?.session
+    // Picks up a sign-in or sign-out made in the Safari extension without
+    // clearing an active session if the Keychain is temporarily unreadable.
+    if let record = sessions.load() { session = record.session }
     authorization = AuthorizationCenter.shared.authorizationStatus
     if isAuthorized {
       shields.clearWebShields()
@@ -196,7 +197,9 @@ final class AppModel {
 
   /// Also signs out the Safari extension the next time it syncs.
   func disconnect() {
+    let old = session
     setSession(nil)
+    if let old { Task { try? await api.logout(session: old) } }
   }
 
   private func setSession(_ session: Session?) {
@@ -298,7 +301,7 @@ final class AppModel {
     do {
       lease = try await api.unlock(request, session: session)
     } catch ScrollockError.unauthorized {
-      disconnect()
+      setSession(nil)
       throw ScrollockError.unauthorized
     }
     do {

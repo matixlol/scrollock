@@ -6,7 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, config } from "./server.mjs";
 
-async function fixture({ mock = true, telegram, failure, leaseDuration } = {}) {
+async function fixture({
+  mock = true,
+  telegram,
+  failure,
+  leaseDuration,
+  sessionDuration,
+} = {}) {
   const dir = await mkdtemp(join(tmpdir(), "scrollock-"));
   let time = 1_800_000_000_000;
   const cfg = {
@@ -24,6 +30,7 @@ async function fixture({ mock = true, telegram, failure, leaseDuration } = {}) {
     telegram,
     now: () => time,
     leaseDuration,
+    sessionDuration,
     mockFailure: failure,
   });
   await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
@@ -51,6 +58,7 @@ async function fixture({ mock = true, telegram, failure, leaseDuration } = {}) {
         telegram,
         now: () => time,
         leaseDuration,
+        sessionDuration,
         mockFailure: failure,
       });
       await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
@@ -568,12 +576,46 @@ test("CORS, login binding, pairing/session expiry, JSON validation, and producti
         .status,
       400,
     );
-  f.tick(604800001);
+  // Default sessions stay connected past seven days until explicitly logged out.
+  f.tick(365 * 86_400_000);
   assert.equal(
     (
       await f.request("/api/unlock", {
         method: "POST",
         headers,
+        body: '{"site":"x"}',
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await f.request("/api/logout", { method: "POST", headers })).status,
+    200,
+  );
+  await f.restart();
+  assert.equal(
+    (
+      await f.request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"x"}',
+      })
+    ).status,
+    401,
+  );
+  // Explicit sessionDuration still expires sessions when configured.
+  const timed = await fixture({ sessionDuration: 604_800_000 });
+  t.after(timed.close);
+  const timedToken = await timed.pair();
+  timed.tick(604_800_001);
+  assert.equal(
+    (
+      await timed.request("/api/unlock", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${timedToken}`,
+          "content-type": "application/json",
+        },
         body: '{"site":"x"}',
       })
     ).status,

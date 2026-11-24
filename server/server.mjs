@@ -123,7 +123,7 @@ export async function createServer(options = {}) {
   const cfg = options.config || config(options.env);
   const now = options.now || Date.now;
   const pairMs = options.pairDuration ?? 600_000,
-    sessionMs = options.sessionDuration ?? 604_800_000;
+    sessionMs = options.sessionDuration ?? null;
   const leaseDurationOverride = options.leaseDuration;
   const store = options.store || new Store(cfg.storePath);
   await store.ready;
@@ -183,8 +183,9 @@ export async function createServer(options = {}) {
     const t = now();
     for (const [key, p] of pairs) if (p.expiresAt <= t) pairs.delete(key);
     for (const [key, value] of rates) if (value.until <= t) rates.delete(key);
-    for (const [key, value] of Object.entries(store.data.sessions))
-      if (value.expiresAt <= t) delete store.data.sessions[key];
+    if (sessionMs != null)
+      for (const [key, value] of Object.entries(store.data.sessions))
+        if (value.expiresAt <= t) delete store.data.sessions[key];
     for (const [key, value] of Object.entries(store.data.leases))
       if (value.expiresAt + 86400000 <= t) delete store.data.leases[key];
     for (const [key, expiresAt] of Object.entries(store.data.usedAuth))
@@ -193,7 +194,9 @@ export async function createServer(options = {}) {
   const authenticate = (req) => {
     const token = /^Bearer (\S+)$/.exec(req.headers.authorization || "")?.[1];
     const s = token && store.data.sessions[token];
-    return s && s.expiresAt > now() ? s : null;
+    if (!s) return null;
+    if (sessionMs != null && s.expiresAt <= now()) return null;
+    return s;
   };
   const authorizePair = async (pairId, user) => {
     const p = pairs.get(pairId);
@@ -275,7 +278,8 @@ export async function createServer(options = {}) {
       const token = id(32);
       store.data.sessions[token] = {
         user: p.user,
-        expiresAt: now() + sessionMs,
+        createdAt: now(),
+        ...(sessionMs != null ? { expiresAt: now() + sessionMs } : {}),
       };
       await store.save();
       return json(res, 200, { token, user: p.user }, cors);
@@ -468,6 +472,16 @@ export async function createServer(options = {}) {
         delete lease.paths;
         lease.ended = true;
         await store.save();
+        return json(res, 200, { ok: true }, cors);
+      }
+      if (req.method === "POST" && url.pathname === "/api/logout") {
+        const token = /^Bearer (\S+)$/.exec(
+          req.headers.authorization || "",
+        )?.[1];
+        if (token) {
+          delete store.data.sessions[token];
+          await store.save();
+        }
         return json(res, 200, { ok: true }, cors);
       }
       return json(res, 404, { error: "not found" }, cors);

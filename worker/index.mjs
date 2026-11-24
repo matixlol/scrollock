@@ -185,8 +185,7 @@ export class ScrollockState {
       request.headers.get("authorization") || "",
     )?.[1];
     const session = token && (await this.storage.get(`session:${token}`));
-    if (!session || session.expiresAt <= this.now()) return null;
-    return session;
+    return session || null;
   }
 
   async handle(request) {
@@ -273,7 +272,7 @@ export class ScrollockState {
       const token = randomId(32);
       await this.storage.put(`session:${token}`, {
         user: pair.user,
-        expiresAt: this.now() + 604_800_000,
+        createdAt: this.now(),
       });
       await this.storage.delete(key);
       return json(200, { token, user: pair.user }, headers);
@@ -437,6 +436,14 @@ export class ScrollockState {
 
     const session = await this.authenticate(request);
     if (!session) return json(401, { error: "invalid session" }, headers);
+
+    if (request.method === "POST" && url.pathname === "/api/logout") {
+      const token = /^Bearer (\S+)$/.exec(
+        request.headers.get("authorization") || "",
+      )?.[1];
+      if (token) await this.storage.delete(`session:${token}`);
+      return json(200, { ok: true }, headers);
+    }
 
     if (request.method === "POST" && url.pathname === "/api/push") {
       const input = await requestBody(request);

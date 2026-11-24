@@ -82,13 +82,17 @@ let session = Session(token: "token", user: TelegramUser(id: 1, name: "Fixture U
     await #expect(throws: ScrollockError.pairingExpired) { try await api.poll(pairing) }
   }
 
-  @Test func startPairingAndLock() async throws {
+  @Test func startPairingLockAndLogout() async throws {
     var api = stubbedAPI { _ in (200, #"{"id":"p","secret":"s","loginUrl":"https://api.example/login?id=p"}"#) }
     #expect(try await api.startPairing().loginUrl.absoluteString == "https://api.example/login?id=p")
     api = stubbedAPI { _ in (200, #"{"ok":true}"#) }
     try await api.lock(Lease(id: "lease", site: .x, expiresAt: .now), session: session)
     let body = try JSONSerialization.jsonObject(with: StubProtocol.requests[0].httpBody!) as! [String: String]
     #expect(body == ["unlockId": "lease"])
+    api = stubbedAPI { _ in (200, #"{"ok":true}"#) }
+    try await api.logout(session: session)
+    #expect(StubProtocol.requests[0].url?.absoluteString == "https://api.example/api/logout")
+    #expect(StubProtocol.requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer token")
   }
 }
 

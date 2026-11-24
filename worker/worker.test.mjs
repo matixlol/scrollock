@@ -490,3 +490,56 @@ test("Worker relays pushes only for registered subscriptions, to their owner", a
     404,
   );
 });
+
+test("Worker sessions stay valid past seven days and are revoked on logout", async () => {
+  const value = fixture();
+  const token = await value.pair();
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+
+  // Advance well past the old seven-day expiry.
+  value.tick(365 * 86_400_000);
+  const unlock = await value.request("/api/unlock", {
+    method: "POST",
+    headers,
+    body: '{"site":"x","minutes":1,"reason":"still connected"}',
+  });
+  assert.equal(unlock.status, 200);
+
+  // Legacy sessions stored with an old expiresAt field also remain valid.
+  const legacyToken = "legacy-token";
+  await value.storage.put(`session:${legacyToken}`, {
+    user: { id: 1001, name: "Fixture User" },
+    expiresAt: 1,
+  });
+  assert.equal(
+    (
+      await value.request("/api/unlock", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${legacyToken}`,
+          "content-type": "application/json",
+        },
+        body: '{"site":"instagram","minutes":1,"reason":"legacy"}',
+      })
+    ).status,
+    200,
+  );
+
+  assert.equal(
+    (await value.request("/api/logout", { method: "POST", headers })).status,
+    200,
+  );
+  assert.equal(
+    (
+      await value.request("/api/unlock", {
+        method: "POST",
+        headers,
+        body: '{"site":"youtube","minutes":1,"reason":"after logout"}',
+      })
+    ).status,
+    401,
+  );
+});

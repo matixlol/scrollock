@@ -78,7 +78,7 @@ Mock mode refuses `NODE_ENV=production` and non-loopback binding. It is for test
 
 7. Reload/install the built extension on each friend's browser. Choose Connect and log in through Telegram. Only members of the configured group can authenticate. Membership is checked again when creating a new break.
 
-The API host permission is restricted at build time to this server. The bot token never enters the extension. Login signatures use Telegram's documented HMAC/SHA-256 verification, a five-minute freshness window, browser-bound pairing cookies, and persistent replay prevention. Pairing secrets are separate from login URLs. Sessions are opaque random tokens, expire after seven days, and are kept in local extension storage, not synchronized browser storage.
+The API host permission is restricted at build time to this server. The bot token never enters the extension. Login signatures use Telegram's documented HMAC/SHA-256 verification, a five-minute freshness window, browser-bound pairing cookies, and persistent replay prevention. Pairing secrets are separate from login URLs. Sessions are opaque random tokens kept in local extension storage (not synchronized browser storage) and stay valid until disconnected; group membership is verified on every unlock.
 
 ### Cloudflare deployment
 
@@ -98,7 +98,7 @@ Telegram credentials remain Cloudflare Worker secrets and are not copied to GitH
 
 The production backend is a Worker at `scrollock.poronga.com.ar`, with a single named Durable Object providing serialized requests and durable SQLite-backed state. Cloudflare provisions DNS and TLS from the custom-domain declaration in `wrangler.jsonc`. The bot token and group ID are Worker secrets; never put them in `wrangler.jsonc`. The committed Chrome public key gives every unpacked copy the stable extension ID `ahdgaahcjnpaegmopigcpgabcjmcilid`, which is the only Chrome origin allowlisted by default. Production enables `ALLOW_SAFARI_EXTENSION_ORIGINS` so each friend's Safari installation can connect without manually registering its random UUID origin.
 
-`GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions expire after seven days. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
+`GET /health` returns `{"ok":true}`. Do not enable request logging of Telegram callback query strings or authorization headers. The built-in limiter allows 120 requests per minute per connecting IP while the Durable Object is active. Sessions stay valid until disconnected; group membership is verified on every unlock. The Node/Docker backend remains available for local or non-Cloudflare hosting, but production uses the Worker.
 
 ## iOS app: Safari extension and Screen Time
 

@@ -42,11 +42,17 @@ public struct SessionStore: Sendable {
   @discardableResult
   public func save(_ record: SessionRecord) -> Bool {
     guard let data = try? JSONEncoder().encode(record) else { return false }
-    SecItemDelete(baseQuery as CFDictionary)
-    var item = baseQuery
-    item[kSecValueData as String] = data
-    item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+    let attributes: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    ]
+    let status = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
+    if status == errSecItemNotFound {
+      var item = baseQuery
+      item.merge(attributes) { _, new in new }
+      return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+    }
+    return status == errSecSuccess
   }
 
   var baseQuery: [String: Any] {
