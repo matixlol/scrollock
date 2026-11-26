@@ -46,9 +46,7 @@ struct HomeScreen: View {
       .refreshable { await model.checkMessages() }
       .background(Color(.systemGroupedBackground))
       .safeAreaInset(edge: .bottom, spacing: 0) {
-        ProfileSearchBar(search: search, focused: $searchFocused, searching: searching) {
-          if let url = search.topURL { openProfile(url) }
-        }
+        ProfileSearchBar(search: search, focused: $searchFocused, searching: searching)
       }
       .task(id: search.query) { await search.update() }
       .navigationTitle("Scrollock")

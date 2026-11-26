@@ -7,7 +7,6 @@ struct ProfileSearchBar: View {
   @Bindable var search: ProfileSearchModel
   var focused: FocusState<Bool>.Binding
   let searching: Bool
-  let submit: () -> Void
 
   var body: some View {
     HStack(spacing: 10) {
@@ -19,9 +18,10 @@ struct ProfileSearchBar: View {
           .focused(focused)
           .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
-          .keyboardType(.twitter)
-          .submitLabel(.go)
-          .onSubmit(submit)
+          // The default keyboard, so the Search key is there to close it
+          // (the `.twitter` layout swaps Return for @ and #).
+          .submitLabel(.search)
+          .onSubmit { focused.wrappedValue = false }
           .accessibilityIdentifier("profileSearchField")
         if !search.query.isEmpty {
           Button {

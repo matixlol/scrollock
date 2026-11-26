@@ -37,12 +37,6 @@ public final class ProfileSearchModel {
     ProfileSearch.sites.compactMap { site in ProfileSearch.handle(from: query, for: site).map { (site, $0) } }
   }
 
-  /// The best place to go for Return: the first result, else the typed handle.
-  public var topURL: URL? {
-    sections.lazy.compactMap { $0.status == .loaded ? $0.results.first?.url : nil }.first
-      ?? directHandles.first.map { ProfileSearch.profileURL(site: $0.site, username: $0.username) }
-  }
-
   /// Searches for the current query after a short pause. Call it from
   /// `.task(id: query)`, which cancels the previous search as typing goes on.
   public func update() async {

@@ -135,7 +135,6 @@ private func result(_ site: Site, _ username: String) -> ProfileResult {
   #expect(model.sections.map(\.site) == [.instagram, .x])
   #expect(model.sections.allSatisfy { $0.status == .loaded })
   #expect(model.sections[0].results.map(\.username) == ["nike_instagram"])
-  #expect(model.topURL == URL(string: "https://www.instagram.com/nike_instagram/"))
 
   // Coming back to a query (e.g. after backspacing) is instant.
   model.query = "Nike"
@@ -155,8 +154,6 @@ private func result(_ site: Site, _ username: String) -> ProfileResult {
   #expect(model.sections.first { $0.site == .x }?.status == .signedOut)
   #expect(model.directHandles.map(\.site) == [.instagram, .x])
   #expect(model.directHandles.map(\.username) == ["cafe_martinez", "cafe_martinez"])
-  // Return opens the typed handle on Instagram.
-  #expect(model.topURL == URL(string: "https://www.instagram.com/cafe_martinez/"))
 }
 
 @MainActor @Test func modelOnlyOffersHandlesThatFitTheSite() {
@@ -165,7 +162,6 @@ private func result(_ site: Site, _ username: String) -> ProfileResult {
   #expect(model.directHandles.map(\.site) == [.instagram])
   model.query = "café martínez"
   #expect(model.directHandles.isEmpty)
-  #expect(model.topURL == nil)
 }
 
 @MainActor @Test func modelClearsWhenQueryIsEmpty() async {
