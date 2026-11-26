@@ -3,36 +3,54 @@ import SwiftUI
 
 /// The home screen: setup progress, then one icon per feed. Tapping a feed
 /// browses it without the feed; breaks, locking and app choices are in each
-/// feed's menu. Everything else is behind the gear.
+/// feed's menu. Everything else is behind the gear. The search bar at the
+/// bottom finds Instagram and X profiles and opens them in the browser.
 struct HomeScreen: View {
   let model: AppModel
   let browse: (Site) -> Void
   @State private var showingSettings = false
   @State private var picking: Site?
+  @State private var search = ProfileSearchModel { try await ProfileSearcher.search($0, on: $1) }
+  @FocusState private var searchFocused: Bool
   @AppStorage("automationSetUp") private var automationSetUp = false
+
+  private var searching: Bool { searchFocused || !search.query.isEmpty }
 
   var body: some View {
     NavigationStack {
       ScrollView {
-        VStack(spacing: 20) {
-          let progress = model.setupProgress(automationSetUp: automationSetUp)
-          if !progress.isComplete {
-            SetupBanner(progress: progress) { showingSettings = true }
-          }
-          IconsPanel(model: model, browse: browse) { picking = $0 }
-          MessageList(model: model)
-          BreakList(model: model)
-          Text("Tap a feed to browse it without the feed. Touch and hold for breaks and apps.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
+        if searching {
+          ProfileSearchResults(search: search, open: openProfile)
             .padding(.horizontal)
+            .padding(.bottom)
+        } else {
+          VStack(spacing: 20) {
+            let progress = model.setupProgress(automationSetUp: automationSetUp)
+            if !progress.isComplete {
+              SetupBanner(progress: progress) { showingSettings = true }
+            }
+            IconsPanel(model: model, browse: browse) { picking = $0 }
+            MessageList(model: model)
+            BreakList(model: model)
+            Text("Tap a feed to browse it without the feed. Touch and hold for breaks and apps.")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+              .multilineTextAlignment(.center)
+              .padding(.horizontal)
+          }
+          .padding(.horizontal)
+          .padding(.bottom)
         }
-        .padding(.horizontal)
-        .padding(.bottom)
       }
+      .scrollDismissesKeyboard(.immediately)
       .refreshable { await model.checkMessages() }
       .background(Color(.systemGroupedBackground))
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        ProfileSearchBar(search: search, focused: $searchFocused, searching: searching) {
+          if let url = search.topURL { openProfile(url) }
+        }
+      }
+      .task(id: search.query) { await search.update() }
       .navigationTitle("Scrollock")
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -53,7 +71,19 @@ struct HomeScreen: View {
       .onChange(of: model.breakSite) { _, site in
         if site != nil { showingSettings = false }
       }
+      #if DEBUG
+        // `-search <query>` starts with that search, for simulator screenshots.
+        .onAppear {
+          if let query = UserDefaults.standard.string(forKey: "search") { search.query = query }
+        }
+      #endif
     }
+  }
+
+  /// Opens a profile in the in-app browser, keeping the search to come back to.
+  private func openProfile(_ url: URL) {
+    searchFocused = false
+    model.openingURL = url
   }
 }
 

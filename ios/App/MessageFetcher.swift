@@ -9,15 +9,15 @@ enum MessageFetcher {
   static let sites: [Site] = [.instagram, .x]
 
   /// The public token x.com's web app sends with every API request.
-  private static let xWebBearer =
+  static let xWebBearer =
     "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
   /// The app IDs instagram.com's web app sends.
-  private static let instagramWebAppID = "936619743392459"
-  private static let instagramMobileWebAppID = "1217981644879628"
+  static let instagramWebAppID = "936619743392459"
+  static let instagramMobileWebAppID = "1217981644879628"
   /// `PolarisDirectInboxMobileQuery` Relay document ID.
   private static let instagramInboxDocID = "29635390039379294"
 
-  private static let session: URLSession = {
+  static let session: URLSession = {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = false
     configuration.httpCookieStorage = nil
@@ -29,7 +29,7 @@ enum MessageFetcher {
   /// (`x.com` over `twitter.com`, `www.instagram.com` over `.instagram.com`).
   @MainActor static func cookies(for site: Site) async -> [HTTPCookie] {
     let now = Date()
-    let matching = await WKWebsiteDataStore.default().httpCookieStore.allCookies().filter { cookie in
+    let matching = await allCookies().filter { cookie in
       let domain = String(cookie.domain.drop { $0 == "." })
       guard Site(host: domain) == site else { return false }
       if let expires = cookie.expiresDate, expires <= now { return false }
@@ -60,6 +60,33 @@ enum MessageFetcher {
       }
     }
     return Array(byName.values)
+  }
+
+  /// Keeps WebKit's networking running so saved logins are readable.
+  @MainActor private static var warmWebView: WKWebView?
+  @MainActor private static var warmingUp: Task<Void, Never>?
+
+  /// Every cookie of the in-app browser. Until a web view exists, WebKit
+  /// hasn't loaded the saved ones and reports none, so this starts one and
+  /// waits briefly (about 200 ms in practice) for them to appear.
+  @MainActor private static func allCookies() async -> [HTTPCookie] {
+    let store = WKWebsiteDataStore.default().httpCookieStore
+    let cookies = await store.allCookies()
+    guard cookies.isEmpty else { return cookies }
+    if warmingUp == nil {
+      let configuration = WKWebViewConfiguration()
+      configuration.websiteDataStore = .default()
+      let webView = WKWebView(frame: .zero, configuration: configuration)
+      webView.loadHTMLString("", baseURL: nil)
+      warmWebView = webView
+      warmingUp = Task {
+        for _ in 0..<20 where await store.allCookies().isEmpty {
+          try? await Task.sleep(for: .milliseconds(100))
+        }
+      }
+    }
+    await warmingUp?.value
+    return await store.allCookies()
   }
 
   /// Unread conversations, or nil when the person isn't signed in to the site in Scrollock.
@@ -98,13 +125,16 @@ enum MessageFetcher {
     }
   }
 
-  /// Instagram removed `/api/v1/direct_v2/inbox/` on web; mobile web now uses
-  /// GraphQL `PolarisDirectInboxMobileQuery` with `fb_dtsg` and `lsd` tokens
-  /// embedded in `/direct/inbox/`.
-  @MainActor private static func fetchInstagramUnread(
-    cookies: [HTTPCookie], csrf: String, viewerID: String?
-  ) async throws -> [UnreadThread]? {
-    var pageRequest = URLRequest(url: URL(string: "https://www.instagram.com/direct/inbox/")!)
+  struct InstagramPageTokens: Equatable {
+    var dtsg: String
+    var lsd: String
+    var actorID: String
+  }
+
+  /// The `fb_dtsg` and `lsd` tokens instagram.com embeds in its pages, which
+  /// its GraphQL API requires. Nil when the page isn't signed in.
+  @MainActor static func instagramPageTokens(cookies: [HTTPCookie], page: String) async throws -> InstagramPageTokens? {
+    var pageRequest = URLRequest(url: URL(string: page)!)
     applyCookies(cookies, to: &pageRequest)
     pageRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
     pageRequest.setValue("text/html", forHTTPHeaderField: "Accept")
@@ -115,11 +145,23 @@ enum MessageFetcher {
       let dtsg = firstMatch(in: html, pattern: #""DTSGInitialData"[^}]*"token":"([^"]+)""#)
         ?? firstMatch(in: html, pattern: #""dtsg":\{"token":"([^"]+)""#),
       let lsd = firstMatch(in: html, pattern: #""LSD"[^}]*"token":"([^"]+)""#)
+    else { return nil }
+    return InstagramPageTokens(
+      dtsg: dtsg, lsd: lsd, actorID: firstMatch(in: html, pattern: #""actorID":"(\d+)""#) ?? "0")
+  }
+
+  /// Instagram removed `/api/v1/direct_v2/inbox/` on web; mobile web now uses
+  /// GraphQL `PolarisDirectInboxMobileQuery` with `fb_dtsg` and `lsd` tokens
+  /// embedded in `/direct/inbox/`.
+  @MainActor private static func fetchInstagramUnread(
+    cookies: [HTTPCookie], csrf: String, viewerID: String?
+  ) async throws -> [UnreadThread]? {
+    guard let tokens = try await instagramPageTokens(cookies: cookies, page: "https://www.instagram.com/direct/inbox/")
     else {
       // Redirected to login or not signed in.
       return nil
     }
-    let actorID = firstMatch(in: html, pattern: #""actorID":"(\d+)""#) ?? "0"
+    let (dtsg, lsd, actorID) = (tokens.dtsg, tokens.lsd, tokens.actorID)
     let variables = """
       {"device_id_for_iris_subscription":"00000000-0000-4000-8000-000000000000","__relay_internal__pv__IGDIsProfessionalAccountGKrelayprovider":true,"__relay_internal__pv__IGDPinnedThreadsRenderEnabledGKrelayprovider":true,"__relay_internal__pv__IGDMaxUnreadMessagesCountrelayprovider":5,"__relay_internal__pv__IGDThreadListActionsEnabledGKrelayprovider":true}
       """
@@ -225,7 +267,7 @@ enum MessageFetcher {
     }
   }
 
-  private static func applyCookies(_ cookies: [HTTPCookie], to request: inout URLRequest) {
+  static func applyCookies(_ cookies: [HTTPCookie], to request: inout URLRequest) {
     for (name, value) in HTTPCookie.requestHeaderFields(with: cookies) {
       request.setValue(value, forHTTPHeaderField: name)
     }
@@ -240,7 +282,7 @@ enum MessageFetcher {
     return String(text[range])
   }
 
-  private static func formURLEncoded(_ pairs: [(String, String)]) -> String {
+  static func formURLEncoded(_ pairs: [(String, String)]) -> String {
     var allowed = CharacterSet.alphanumerics
     allowed.insert(charactersIn: "-._~")
     return pairs.map { key, value in
@@ -251,7 +293,7 @@ enum MessageFetcher {
   }
 
   /// Mobile Safari's user agent, which the in-app browser also presents.
-  @MainActor private static var userAgent: String {
+  @MainActor static var userAgent: String {
     let version = UIDevice.current.systemVersion.replacingOccurrences(of: ".", with: "_")
     let major = UIDevice.current.systemVersion.split(separator: ".").first ?? "18"
     return
