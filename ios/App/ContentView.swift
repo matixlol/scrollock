@@ -43,9 +43,11 @@ struct ContentView: View {
     }
     #if DEBUG
       // `-browse instagram` opens the browser at launch, for simulator screenshots.
+      // `-browseURL <url>` opens that page instead, for UI tests.
       .onAppear {
-        browsing = UserDefaults.standard.string(forKey: "browse").flatMap(Site.init(rawValue:)).map {
-          BrowseTarget(site: $0, url: $0.webURL)
+        let defaults = UserDefaults.standard
+        browsing = defaults.string(forKey: "browse").flatMap(Site.init(rawValue:)).map {
+          BrowseTarget(site: $0, url: defaults.string(forKey: "browseURL").flatMap(URL.init(string:)) ?? $0.webURL)
         }
       }
     #endif

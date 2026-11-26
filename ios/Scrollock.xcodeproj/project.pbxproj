@@ -94,6 +94,13 @@
 			remoteGlobalIDString = 4143707A8167A93F4A380A97;
 			remoteInfo = "Scrollock Extension";
 		};
+		5332829F46A9FFD26E7FA3BC = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595;
+			proxyType = 1;
+			remoteGlobalIDString = C33FA4C20E98F334E31C17F4;
+			remoteInfo = Scrollock;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -191,6 +198,13 @@
 			path = "ShieldConfiguration-Info.plist";
 			sourceTree = "<group>";
 		};
+		46DFF7233FC9E4BED29752AE = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.cfbundle;
+			includeInIndex = 0;
+			path = ScrollockUITests.xctest;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -222,6 +236,11 @@
 		F2B957CB1DDD3B1F79250D9A = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ShieldConfiguration;
+			sourceTree = "<group>";
+		};
+		E2EFB302C363E7F014C106C4 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = UITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -267,6 +286,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		3A85220C3FDFAB5F6910B2A4 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -292,6 +318,7 @@
 				05DD1ABE2803DBE140577EF5,
 				55FD8240E9732769B1058EB4,
 				DD0212E095DBE5DBF17B992A,
+				46DFF7233FC9E4BED29752AE,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -306,6 +333,7 @@
 				F2B957CB1DDD3B1F79250D9A,
 				AB3223794C9EDDD2B83540CB,
 				5386A2EAF0036C0154CF9012,
+				E2EFB302C363E7F014C106C4,
 				86024CAD1E83101D97359D73,
 			);
 			sourceTree = "<group>";
@@ -438,6 +466,26 @@
 			productReference = B4F6FA40BA14F14D6241E007;
 			productType = "com.apple.product-type.application";
 		};
+		9B8717014B6F4CBB8D10BA3B = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 512177324D89E4B5BB813B98;
+			buildPhases = (
+				AFD135233772ECDF848D9F05,
+				3A85220C3FDFAB5F6910B2A4,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				48CC6C1072CDE6A8353AC292,
+			);
+			fileSystemSynchronizedGroups = (
+				E2EFB302C363E7F014C106C4,
+			);
+			name = ScrollockUITests;
+			productName = ScrollockUITests;
+			productReference = 46DFF7233FC9E4BED29752AE;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -470,6 +518,7 @@
 				360275C4A90D1D6381FA1598,
 				6989F7B530401F6EC0886C32,
 				B7910723DE75EA19ADB9455E,
+				9B8717014B6F4CBB8D10BA3B,
 			);
 		};
 /* End PBXProject section */
@@ -570,6 +619,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AFD135233772ECDF848D9F05 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -592,6 +648,11 @@
 			isa = PBXTargetDependency;
 			target = 360275C4A90D1D6381FA1598;
 			targetProxy = 11D98B05A9CE4439AF729CC7;
+		};
+		48CC6C1072CDE6A8353AC292 = {
+			isa = PBXTargetDependency;
+			target = C33FA4C20E98F334E31C17F4;
+			targetProxy = 5332829F46A9FFD26E7FA3BC;
 		};
 /* End PBXTargetDependency section */
 
@@ -801,6 +862,30 @@
 			};
 			name = Debug;
 		};
+		39A98089671F50639742F6BB = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Scrollock;
+			};
+			name = Debug;
+		};
+		0476743566D86A302F7077FB = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = ar.com.poronga.Scrollock.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Scrollock;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -854,6 +939,15 @@
 			buildConfigurations = (
 				F0B0DD89215D98924675AEC4,
 				2E24B6958C2093966C8FAE6B,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		512177324D89E4B5BB813B98 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				39A98089671F50639742F6BB,
+				0476743566D86A302F7077FB,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

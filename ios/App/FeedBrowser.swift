@@ -20,9 +20,9 @@ struct FeedBrowser: View {
       if #available(iOS 26, *) {
         // The page scrolls behind the pill and the home indicator, like
         // Safari. The pill counts as obscured, so bars fixed to the page's
-        // bottom stay above it.
+        // bottom stay above it. The page still ends at the keyboard.
         ZStack(alignment: .bottom) {
-          page.ignoresSafeArea(edges: .bottom)
+          page.ignoresSafeArea(.container, edges: .bottom)
           if !keyboardShown {
             bar
               .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.bottom } action: {
@@ -40,7 +40,6 @@ struct FeedBrowser: View {
         }
       }
     }
-    .ignoresSafeArea(.keyboard)
     .animation(.easeOut(duration: 0.2), value: keyboardShown)
     .background(Color(.systemBackground))
     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -64,8 +63,10 @@ struct FeedBrowser: View {
     .onChange(of: model.leases) { browser?.pushLeases() }
   }
 
-  /// With the keyboard up the pill hides and the web view makes room for the
-  /// keyboard itself.
+  /// With the keyboard up the pill hides and the page ends at the keyboard,
+  /// so bars fixed to its bottom, like a DM composer, sit on the keyboard.
+  /// Left under the keyboard, with the pill's insets in place, WebKit kept
+  /// such bars hidden behind it.
   @ViewBuilder private var page: some View {
     if let browser {
       WebView(webView: browser.webView, obscuredBottom: keyboardShown ? 0 : barHeight)
